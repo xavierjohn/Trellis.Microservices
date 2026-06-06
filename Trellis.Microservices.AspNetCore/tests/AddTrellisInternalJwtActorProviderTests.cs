@@ -10,8 +10,6 @@ using Trellis.Authorization;
 
 /// <summary>
 /// Tests for <see cref="ServiceCollectionExtensions.AddTrellisInternalJwtActorProvider"/>.
-/// Companion <c>TrellisServiceBuilder.UseTrellisInternalJwtActor</c> tests live in
-/// <c>Trellis.ServiceDefaults.Tests.TrellisServiceBuilderTests</c>.
 /// </summary>
 public sealed class AddTrellisInternalJwtActorProviderTests
 {

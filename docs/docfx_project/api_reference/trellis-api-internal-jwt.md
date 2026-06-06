@@ -15,7 +15,7 @@ audience: [llm]
 ## Use this file when
 
 - You are configuring a downstream microservice that consumes JWTs minted by `Trellis.Yarp` (or a third-party gateway implementing the same contract).
-- You need the exact signatures of `AddTrellisInternalJwtActorProvider` / `UseTrellisInternalJwtActor` or any of the `TrellisInternalJwtActorOptions` knobs.
+- You need the exact signatures of `AddTrellisInternalJwtActorProvider` or any of the `TrellisInternalJwtActorOptions` knobs.
 - You are auditing the consumer-side fail-closed posture (sentinel claim, count mismatches, strict claim shape, required-attribute enforcement).
 - You are wiring an alternative authentication scheme (cookie, mTLS, forwarded-headers) — the provider does not assume `Bearer`; it is `AuthenticationScheme`-driven.
 
@@ -23,8 +23,7 @@ audience: [llm]
 
 | Goal | Canonical API / action | See |
 |---|---|---|
-| Register via `TrellisServiceBuilder` (preferred — composes with the rest of Trellis composition root) | `services.AddTrellis(b => b.UseTrellisInternalJwtActor(o => ...))` | [`TrellisServiceBuilder` slot — upstream `trellis-api-servicedefaults.md`](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-servicedefaults.md) |
-| Register the actor provider directly | `services.AddTrellisInternalJwtActorProvider(o => ...)` | [`ServiceCollectionExtensions`](#servicecollectionextensions) |
+| Register the actor provider | `services.AddTrellisInternalJwtActorProvider(o => ...)` (direct `IServiceCollection` extension; no `TrellisServiceBuilder` slot — the previous `UseTrellisInternalJwtActor` slot in upstream `Trellis.ServiceDefaults` was removed in v3 when the implementation moved to this package) | [`ServiceCollectionExtensions`](#servicecollectionextensions) |
 | Map an ABAC attribute from a JWT claim | `options.AttributeClaimMap["tenant_id"] = "tenant_id"` | [`TrellisInternalJwtActorOptions`](#trellisinternaljwtactoroptions) |
 | Require an attribute on every request | `options.RequiredAttributes = ["tenant_id"]` (entry MUST also be in `AttributeClaimMap`) | [`TrellisInternalJwtActorOptions`](#trellisinternaljwtactoroptions) |
 | Cross-check the JWT issuer / audience defense-in-depth | `options.ExpectedIssuer = "..."`, `options.ExpectedAudience = "..."` | [`TrellisInternalJwtActorOptions`](#trellisinternaljwtactoroptions) |
@@ -111,20 +110,26 @@ public static class ServiceCollectionExtensions
 
 > **Replacement semantics.** Calling `AddTrellisInternalJwtActorProvider` Replace-registers the `IActorProvider` slot — the previous registration is removed and exactly one descriptor remains. Calling multiple `Add*ActorProvider` helpers leaves the last one wins; chained `AddCachingActorProvider<TrellisInternalJwtActorProvider>()` will wrap this provider for per-scope actor caching.
 
-**Preferred composition root entry.** When the application uses `services.AddTrellis(b => ...)` (the standard Trellis composition root), prefer the `TrellisServiceBuilder` slot which threads through the same single-slot enforcement:
+**Composition root entry.** Call this extension directly against `IServiceCollection`:
 
 ```csharp
+builder.Services.AddTrellisInternalJwtActorProvider(o =>
+{
+    o.ExpectedIssuer = "https://gateway.internal";
+    o.ExpectedAudience = "orders-api";
+    o.AttributeClaimMap["tenant_id"] = "tenant_id";
+    o.RequiredAttributes = ["tenant_id"];
+});
+
 builder.Services.AddTrellis(b => b
-    .UseTrellisInternalJwtActor(o =>
-    {
-        o.ExpectedIssuer = "https://gateway.internal";
-        o.ExpectedAudience = "orders-api";
-        o.AttributeClaimMap["tenant_id"] = "tenant_id";
-        o.RequiredAttributes = ["tenant_id"];
-    }));
+    // Other Trellis builder slots (UseMediator, UseAsp, etc.) — but NOT UseTrellisInternalJwtActor,
+    // which was removed from upstream Trellis.ServiceDefaults in v3 when this provider moved
+    // to Trellis.Microservices.AspNetCore.
+    .UseMediator()
+    .UseAsp());
 ```
 
-See upstream [`trellis-api-servicedefaults.md`](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-servicedefaults.md) for the `TrellisServiceBuilder` slot conventions (single-slot policy, throw-on-duplicate).
+The `IActorProvider` slot is shared between this extension and `services.AddTrellis(...)` because both resolve into the same `IServiceCollection`; the call order doesn't matter, and the single-slot enforcement runs at host start.
 
 ---
 
@@ -156,7 +161,7 @@ Fail-closed posture: the validator runs at startup and throws `OptionsValidation
 
 - [`trellis-api-yarp.md`](trellis-api-yarp.md#use-this-file-when) — gateway-side companion that mints the JWT this provider consumes; the [Internal JWT contract v1](trellis-api-yarp.md#internal-jwt-contract-v1) table is the source-of-truth for claim names and shapes.
 - [`trellis-api-microservices-abstractions.md`](trellis-api-microservices-abstractions.md#use-this-file-when) — `TrellisInternalJwtClaimNames` constants both sides reference.
-- [Recipe 1 — Strict `AddJwtBearer` profile](trellis-api-microservices-cookbook.md#recipe-1--strict-addjwtbearer-validation-profile-for-usetrellisinternaljwtactor) — the mandatory companion `AddJwtBearer` config (`MapInboundClaims = false`, `TryAllIssuerSigningKeys = false`, `ValidAlgorithms = [activeAlg]`, `ClockSkew = 30s`).
+- [Recipe 1 — Strict `AddJwtBearer` profile](trellis-api-microservices-cookbook.md#recipe-1--strict-addjwtbearer-validation-profile-for-addtrellisinternaljwtactorprovider) — the mandatory companion `AddJwtBearer` config (`MapInboundClaims = false`, `TryAllIssuerSigningKeys = false`, `ValidAlgorithms = [activeAlg]`, `ClockSkew = 30s`).
 - [Recipe 2 — Microservices behind YARP, end-to-end](trellis-api-microservices-cookbook.md#recipe-2--microservices-behind-yarp-end-to-end) — full worked example including tenant-isolation defense-in-depth, multi-IdP namespacing, key rotation, emergency revocation.
 - Upstream [`trellis-api-asp.md`](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-asp.md) (in `xavierjohn/Trellis`) — `IProvideActorVaryHeaders`, the other actor-provider implementations (`ClaimsActorProvider`, `EntraActorProvider`, `DevelopmentActorProvider`), `CachingActorProvider` (composable with this provider).
 - Upstream [`trellis-api-authorization.md`](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-authorization.md) (in `xavierjohn/Trellis`) — `Actor`, `IActorProvider`, deny-overrides-allow contract integrity invariant, `IAuthorizeResource<T>` for tenant ABAC.
@@ -170,4 +175,4 @@ If you adopted P3 / P3.5 from `xavierjohn/Trellis` before this package shipped, 
 | `using Trellis.Asp.Authorization;` (for `TrellisInternalJwt*`) | `using Trellis.Microservices.AspNetCore;` |
 | `Trellis.Asp` NuGet package | `Trellis.Microservices.AspNetCore` NuGet package (add reference) + still keep `Trellis.Asp` (for everything else) |
 | `services.AddTrellisInternalJwtActorProvider(...)` | unchanged (extension method is `IServiceCollection`-scoped, namespace move only) |
-| `services.AddTrellis(b => b.UseTrellisInternalJwtActor(...))` | unchanged — the call site is identical. `AddTrellis` and the `TrellisServiceBuilder.UseTrellisInternalJwtActor` slot both remain on `Trellis.ServiceDefaults` in the upstream `xavierjohn/Trellis` repo. The slot wires through to the provider in this package automatically once the `Trellis.Microservices.AspNetCore` NuGet reference is added. |
+| `services.AddTrellis(b => b.UseTrellisInternalJwtActor(...))` | `services.AddTrellisInternalJwtActorProvider(...)` — call directly against `IServiceCollection`. The upstream `TrellisServiceBuilder.UseTrellisInternalJwtActor` slot was removed in v3 cleanup (after the implementation moved to this package), so the call site DOES change. The two registrations target the same `IActorProvider` slot. |

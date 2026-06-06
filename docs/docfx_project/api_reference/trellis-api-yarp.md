@@ -12,7 +12,7 @@ audience: [llm]
 **Namespaces:** `Trellis.Yarp`
 **Purpose:** YARP gateway integration for Trellis. Re-mints a per-cluster internal JWT from the full Trellis `Actor` (id + permissions + forbidden permissions + ABAC attributes); exposes an OIDC discovery + JWKS endpoint pair so downstream services using `AddJwtBearer(o => o.Authority = gatewayUrl)` can fetch the active signing keys; emits redacted audit telemetry on every mint.
 
-Pairs with the consumer-side `TrellisInternalJwtActorProvider` in [`Trellis.Microservices.AspNetCore`](trellis-api-internal-jwt.md#use-this-file-when). See [Recipe 1](trellis-api-microservices-cookbook.md#recipe-1--strict-addjwtbearer-validation-profile-for-usetrellisinternaljwtactor) for the downstream side, [Recipe 2](trellis-api-microservices-cookbook.md#recipe-2--microservices-behind-yarp-end-to-end) for the gateway-side end-to-end. Both sides reference the same canonical claim names from [`Trellis.Microservices.Abstractions`](trellis-api-microservices-abstractions.md#use-this-file-when).
+Pairs with the consumer-side `TrellisInternalJwtActorProvider` in [`Trellis.Microservices.AspNetCore`](trellis-api-internal-jwt.md#use-this-file-when). See [Recipe 1](trellis-api-microservices-cookbook.md#recipe-1--strict-addjwtbearer-validation-profile-for-addtrellisinternaljwtactorprovider) for the downstream side, [Recipe 2](trellis-api-microservices-cookbook.md#recipe-2--microservices-behind-yarp-end-to-end) for the gateway-side end-to-end. Both sides reference the same canonical claim names from [`Trellis.Microservices.Abstractions`](trellis-api-microservices-abstractions.md#use-this-file-when).
 
 ## Use this file when
 
@@ -30,7 +30,7 @@ Pairs with the consumer-side `TrellisInternalJwtActorProvider` in [`Trellis.Micr
 | Configure per-cluster audience | `options.AudiencePerCluster = cluster => "<audience>"` | [`TrellisActorForwardingOptions`](#trellisactorforwardingoptions) |
 | Project permissions per cluster | `options.ProjectPermissionsFor = (cluster, perms) => perms.Where(...)` | [`TrellisActorForwardingOptions`](#trellisactorforwardingoptions) |
 | Override `sub` for multi-IdP gateways (MUST do this when fronting >1 IdP) | `options.ActorIdResolver = actor => $"<ns>\|{actor.Id.Value}"` | [`TrellisActorForwardingOptions`](#trellisactorforwardingoptions) |
-| Rotate signing keys with overlap window | Set new `SigningCredentials`; move the previous key into `PreviousSigningKeys` until the rotation window expires | [Recipe 1](trellis-api-microservices-cookbook.md#recipe-1--strict-addjwtbearer-validation-profile-for-usetrellisinternaljwtactor) (rotation runbook) |
+| Rotate signing keys with overlap window | Set new `SigningCredentials`; move the previous key into `PreviousSigningKeys` until the rotation window expires | [Recipe 1](trellis-api-microservices-cookbook.md#recipe-1--strict-addjwtbearer-validation-profile-for-addtrellisinternaljwtactorprovider) (rotation runbook) |
 | Emergency revoke a compromised key | Drop the compromised `kid` from `SigningCredentials` AND `PreviousSigningKeys`, redeploy gateway, force downstream JWKS refresh | [Recipe 2](trellis-api-microservices-cookbook.md#recipe-2--microservices-behind-yarp-end-to-end) (emergency revocation procedure) |
 
 ## Threat model
@@ -169,7 +169,7 @@ The `jti` makes every minted token correlatable to its mint event without leakin
 
 ## See also
 
-- [Recipe 1](trellis-api-microservices-cookbook.md#recipe-1--strict-addjwtbearer-validation-profile-for-usetrellisinternaljwtactor) — strict `AddJwtBearer` profile for the downstream consumer side.
+- [Recipe 1](trellis-api-microservices-cookbook.md#recipe-1--strict-addjwtbearer-validation-profile-for-addtrellisinternaljwtactorprovider) — strict `AddJwtBearer` profile for the downstream consumer side.
 - [Recipe 2](trellis-api-microservices-cookbook.md#recipe-2--microservices-behind-yarp-end-to-end) — end-to-end gateway + downstream worked example, key-rotation runbook, emergency revocation procedure.
 - [`TrellisInternalJwtActorProvider`](trellis-api-internal-jwt.md#trellisinternaljwtactorprovider) — consumer-side companion that hydrates the full `Actor` from the JWT this package mints.
 - [`TrellisInternalJwtClaimNames`](trellis-api-microservices-abstractions.md#trellisinternaljwtclaimnames) — the canonical claim-name constants both sides reference.
