@@ -50,5 +50,15 @@
     <Project Path="examples/E2EHarness/E2EHarness.Tests.csproj" />
     <File Path="examples/E2EHarness/README.md" />
   </Folder>
+  <Folder Name="/examples/Sample/">
+    <Project Path="examples/Sample/Sample.AppHost/Sample.AppHost.csproj" />
+    <Project Path="examples/Sample/Sample.ServiceDefaults/Sample.ServiceDefaults.csproj" />
+    <Project Path="examples/Sample/Gateway/Gateway.csproj" />
+    <Project Path="examples/Sample/Orders/Orders.csproj" />
+    <Project Path="examples/Sample/Billing/Billing.csproj" />
+    <File Path="examples/Sample/README.md" />
+    <File Path="examples/Sample/ARCHITECTURE.md" />
+    <File Path="examples/Sample/Sample.http" />
+  </Folder>
 </Solution>
 

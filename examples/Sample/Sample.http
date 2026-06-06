@@ -1,0 +1,79 @@
+﻿# Trellis.Microservices Sample — REST client requests
+#
+# Works with:
+#   - VS Code: "REST Client" extension (humao.rest-client)
+#   - Visual Studio 2022 17.8+: built-in .http file support
+#   - JetBrains Rider / IntelliJ: built-in HTTP client
+#
+# Prereq: Aspire AppHost running.
+#   dotnet run --project examples/Sample/Sample.AppHost
+#
+# This boots Gateway (port 5001) + Orders + Billing and opens the Aspire dashboard
+# (https://localhost:17051 by default). Logs, traces, and metrics from all three
+# services flow into the dashboard so you can SEE the gateway -> orders / billing
+# trace span fan-out in real time.
+#
+# See examples/Sample/README.md for the full walkthrough.
+
+@host = http://localhost:5001
+
+### 1. Orders — happy path
+# Sends an X-Test-Actor JSON envelope to the Gateway. The Gateway's
+# DevelopmentActorProvider parses it, AddTrellisActorForwarding mints a fresh JWT
+# (audience="orders" because YARP matched the "orders-route" cluster) and YARP
+# forwards to the Orders service. Orders validates via OIDC discovery (fetches
+# JWKS from Gateway), hydrates the Actor via TrellisInternalJwtActorProvider,
+# and echoes it back. Open the Aspire dashboard's Traces tab to see the
+# Gateway -> Orders span.
+#
+# Expected: 200 OK + "service":"orders" + round-tripped Actor.
+GET {{host}}/api/orders
+X-Test-Actor: {"Id":"alice","Permissions":["orders:read","orders:write"],"ForbiddenPermissions":["orders:delete"],"Attributes":{"tenant_id":"acme-corp"}}
+
+### 2. Billing — happy path (SAME actor, DIFFERENT route)
+# Same X-Test-Actor envelope, different URL prefix. YARP matches the
+# "billing-route" cluster, AddTrellisActorForwarding mints a SEPARATE JWT with
+# audience="billing", forwards to the Billing service. Billing's JwtBearer pins
+# audience="billing" so it accepts; the token minted for /api/orders would NOT
+# validate here (per-cluster audience pinning — see scenario 6).
+#
+# Expected: 200 OK + "service":"billing" + same Actor as scenario 1.
+GET {{host}}/api/billing
+X-Test-Actor: {"Id":"alice","Permissions":["orders:read","billing:read"],"ForbiddenPermissions":[],"Attributes":{"tenant_id":"acme-corp"}}
+
+### 3. Orders — different tenant (carol / contoso)
+# Proves the tenant_id ABAC claim flows through to Actor.Attributes on the
+# downstream side.
+GET {{host}}/api/orders
+X-Test-Actor: {"Id":"carol","Permissions":["orders:read"],"ForbiddenPermissions":[],"Attributes":{"tenant_id":"contoso"}}
+
+### 4. Missing tenant_id — fail-closed via RequiredAttributes
+# Expected: 401 Unauthorized. The downstream Orders service's
+# TrellisInternalJwtActorProvider has RequiredAttributes = ["tenant_id"] so a
+# request without a tenant claim is rejected before the endpoint runs. This is
+# the framework's defense against a downstream service ever evaluating a request
+# without knowing which tenant it belongs to.
+GET {{host}}/api/orders
+X-Test-Actor: {"Id":"bob","Permissions":["orders:read"],"ForbiddenPermissions":[],"Attributes":{}}
+
+### 5. No actor header at all
+# Expected: 401 Unauthorized. DevelopmentActorProvider falls back to the default
+# actor ("guest" with no permissions/attributes); without tenant_id the downstream
+# fails closed.
+GET {{host}}/api/orders
+
+### 6. Unknown route — YARP no-match
+# Expected: 404 Not Found. Proves YARP is actually doing path-based routing —
+# only /api/orders/{**catch-all} and /api/billing/{**catch-all} are mapped.
+GET {{host}}/api/unknown
+X-Test-Actor: {"Id":"alice","Permissions":[],"ForbiddenPermissions":[],"Attributes":{"tenant_id":"acme"}}
+
+### 7. OIDC discovery document (published by Gateway via MapTrellisDiscoveryEndpoint)
+# This is what the downstream services' AddJwtBearer(o.Authority = "http://localhost:5001")
+# auto-fetches to learn where the JWKS lives.
+GET {{host}}/.well-known/openid-configuration
+
+### 8. JWKS document (the Gateway's public signing keys)
+# Downstream services fetch this once at startup, cache it, and use it to verify
+# every inbound JWT's signature. The "kid" claim on the JWT picks the matching key.
+GET {{host}}/.well-known/jwks.json
