@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Trellis.Microservices.Abstractions</PackageId>
+    <Description>Shared contract constants for the Trellis internal-network JWT v1, paired with Trellis.Yarp (gateway-side minter) and Trellis.Microservices.AspNetCore (consumer-side actor provider). Ships only public string literals — AOT-compatible, no runtime dependencies.</Description>
+    <PackageTags>trellis;microservices;jwt;contract;abstractions;ddd</PackageTags>
+
+    <!-- Auto-pack the API reference markdown to trellis/ folder in the .nupkg so LLMs
+         discover it without a separate doc fetch. See Directory.Build.targets. -->
+    <TrellisApiRefName>microservices-abstractions</TrellisApiRefName>
+
+    <!-- The foundational package every microservices consumer references transitively;
+         ship the cookbook into .github/ once via this package. See Directory.Build.targets. -->
+    <TrellisShipsCookbook>true</TrellisShipsCookbook>
+
+    <!-- AOT compatibility — this package ships only public const string literals. -->
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="NUGET_README.md" Pack="true" PackagePath="\README.md" />
+  </ItemGroup>
+
+</Project>

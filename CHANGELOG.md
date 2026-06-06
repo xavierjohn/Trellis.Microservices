@@ -6,6 +6,17 @@ All notable changes to this repository will be documented in this file. The form
 
 ### Added
 
+- **`Trellis.Microservices.Abstractions` package** — first package in this repo. Ships one public static class `TrellisInternalJwtClaimNames` with the canonical contract literals (`Subject`, `JwtId`, `Permissions`, `ForbiddenPermissions`, `ContractVersion`, `PermissionsCount`, `ForbiddenPermissionsCount`, `CurrentContractVersion = "1"`). Promotes the previously-internal `TrellisInternalJwtClaimNames` (from `xavierjohn/Trellis`'s `Trellis.Yarp`) to `public`, eliminating the duplication where the consumer side (`Trellis.Asp.Authorization.TrellisInternalJwtActorOptions` defaults) hard-coded the same strings by convention. AOT-compatible, no runtime dependencies.
+- Tests: `Trellis.Microservices.Abstractions.Tests` — pins every literal value, snapshots the public const surface (catches silent additions / removals), and asserts non-empty + unique values.
+
+### Notes
+
+- The pre-existing `internal` copy of `TrellisInternalJwtClaimNames` in `xavierjohn/Trellis`'s `Trellis.Yarp` will be removed in the upcoming PR C (which moves `Trellis.Yarp` into this repo and rewires it to depend on `Trellis.Microservices.Abstractions`).
+
+## 0.1-alpha — Initial bootstrap
+
+### Added
+
 - Initial repository scaffolding: `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packages.props`, `.editorconfig`, `.gitignore`, `.gitattributes`, `global.json`, `version.json`, `nuget.config`, `LICENSE`, `README.md`, `CHANGELOG.md`, `Trellis.Microservices.slnx`, `build/test.props`, `build/Trellis.ApiReference.targets`, `icon.png`.
 - LLM-discoverability documentation under `docs/docfx_project/api_reference/`:
   - `trellis-api-microservices-cookbook.md` — entry-point cookbook with task-lookup table and recipe placeholders (Recipes 1 and 2 will be inlined verbatim from `xavierjohn/Trellis` Recipes 33 + 34 when the source files land).
@@ -14,8 +25,5 @@ All notable changes to this repository will be documented in this file. The form
   - `trellis-api-microservices-abstractions.md` — new abstractions package reference.
 - `.github/copilot-instructions.md` — agent instructions with the "P4 invariants — never regress" 14-row checklist for any change touching minter / validator / provider code.
 - `.github/dependabot.yml` — weekly GitHub Actions and NuGet updates.
+- `docs/lint-api-reference.{ps1,md}` — API-reference doc lint (opt-in per project via `<TrellisEnableApiReferenceLint>true</TrellisEnableApiReferenceLint>`).
 
-### Notes
-
-- No `.cs` files yet. Source for the three packages lands in follow-up PRs: B (`Trellis.Microservices.Abstractions`), then C (`Trellis.Yarp` move + `Trellis.Microservices.AspNetCore` carve-out from `xavierjohn/Trellis`).
-- Package preview NuGets will be published once PR C lands.
