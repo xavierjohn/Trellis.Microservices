@@ -10,8 +10,8 @@ using global::Yarp.ReverseProxy.Transforms.Builder;
 /// <summary>
 /// <see cref="IReverseProxyBuilder"/> extensions that wire the Trellis actor-forwarding
 /// transform pipeline. Pair with the consumer-side
-/// <c>TrellisInternalJwtActorProvider</c> in <c>Trellis.Asp.Authorization</c> and the
-/// strict <c>AddJwtBearer</c> profile in cookbook Recipe 33.
+/// <c>TrellisInternalJwtActorProvider</c> in <c>Trellis.Microservices.AspNetCore</c> and the
+/// strict <c>AddJwtBearer</c> profile in microservices cookbook Recipe 1.
 /// </summary>
 public static class TrellisActorForwardingServiceCollectionExtensions
 {

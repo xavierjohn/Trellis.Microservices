@@ -82,8 +82,8 @@ internal static class TrellisActorForwardingRequestTransform
             // this clear, YARP's default behavior copies the inbound header to the
             // proxied request, which would let an external token (audience: gateway)
             // arrive at a downstream that pins audience to its internal value — fine
-            // IF the downstream follows Recipe 33's strict-audience profile, but a
-            // single misconfigured downstream creates an authority-confusion vector.
+            // IF the downstream follows microservices cookbook Recipe 1's strict-audience
+            // profile, but a single misconfigured downstream creates an authority-confusion vector.
             // Fail closed: no actor → no Authorization on the upstream request, and
             // the downstream policy decides whether anonymous is allowed.
             requestContext.ProxyRequest.Headers.Authorization = null;

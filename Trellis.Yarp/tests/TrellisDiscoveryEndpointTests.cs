@@ -55,7 +55,7 @@ public sealed class TrellisDiscoveryEndpointTests
     {
         // PR review feedback: discovery doc must advertise the algorithm actually in use,
         // not a hard-coded RS*/ES* list. Downstream consumers using ValidAlgorithms = ["RS256"]
-        // (Recipe 33) need the published list to match what the gateway mints.
+        // (microservices cookbook Recipe 1) need the published list to match what the gateway mints.
         var options = NewValidOptions();
 
         var doc = TrellisDiscoveryEndpointRouteBuilderExtensions.BuildDiscoveryDocument(

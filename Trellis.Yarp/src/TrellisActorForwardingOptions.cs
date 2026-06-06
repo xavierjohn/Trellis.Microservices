@@ -11,7 +11,7 @@ using Trellis.Authorization;
 /// captures <see cref="ClusterConfig"/> at <c>TransformBuilderContext</c> time, hydrates
 /// the full <see cref="Actor"/> on every request, and mints a fresh per-cluster JWT
 /// the downstream consumer (typically <c>TrellisInternalJwtActorProvider</c> in
-/// <c>Trellis.Asp</c>) hydrates back into the same <see cref="Actor"/> surface.
+/// <c>Trellis.Microservices.AspNetCore</c>) hydrates back into the same <see cref="Actor"/> surface.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -158,7 +158,7 @@ public sealed class TrellisActorForwardingOptions
     /// Startup validation rejects values outside <c>[1 minute, 30 minutes]</c> — the
     /// recommendation is short-lived tokens; the cap is defense against accidental
     /// mis-configuration that would expand the post-compromise spoof window. Pair with
-    /// downstream <c>ClockSkew = TimeSpan.FromSeconds(30)</c> (see Recipe 33) so the
+    /// downstream <c>ClockSkew = TimeSpan.FromSeconds(30)</c> (see microservices cookbook Recipe 1) so the
     /// effective replay window stays under ~6 minutes for the default lifetime.
     /// </summary>
     public TimeSpan Lifetime { get; set; } = TimeSpan.FromMinutes(5);

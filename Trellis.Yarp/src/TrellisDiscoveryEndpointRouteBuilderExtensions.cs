@@ -115,7 +115,7 @@ public static class TrellisDiscoveryEndpointRouteBuilderExtensions
 
         // Advertise only the active signing algorithm — keeps the discovery document
         // truthful about what the gateway actually mints. Downstream consumers using
-        // ValidAlgorithms = ["RS256"] (Recipe 33 recommendation) need the published
+        // ValidAlgorithms = ["RS256"] (microservices cookbook Recipe 1 recommendation) need the published
         // alg list to match exactly. v1 assumes rotation is within a single algorithm
         // family; if the active key's algorithm changes mid-rotation, redeploy with
         // the new alg or list both at the SigningCredentials.Algorithm level.
