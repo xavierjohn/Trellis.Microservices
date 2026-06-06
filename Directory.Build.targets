@@ -1,0 +1,35 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <!--
+    Auto-pack API reference markdown and shared .targets for any Trellis package
+    that sets TrellisApiRefName (e.g., <TrellisApiRefName>yarp</TrellisApiRefName>).
+    Mirrors the convention in xavierjohn/Trellis so consumers using packages from
+    either repo see the same `trellis/trellis-api-<name>.md` layout in their NuGet
+    cache for LLM-discoverability.
+  -->
+  <ItemGroup Condition="'$(TrellisApiRefName)' != ''">
+    <None Include="$(MSBuildThisFileDirectory)docs\docfx_project\api_reference\trellis-api-$(TrellisApiRefName).md"
+          Pack="true" PackagePath="trellis\" />
+    <None Include="$(MSBuildThisFileDirectory)build\Trellis.ApiReference.targets"
+          Pack="true" PackagePath="build\$(PackageId).targets" />
+    <None Include="$(MSBuildThisFileDirectory)build\Trellis.ApiReference.targets"
+          Pack="true" PackagePath="buildTransitive\$(PackageId).targets" />
+  </ItemGroup>
+
+  <!--
+    Cross-cutting microservices cookbook ships once, in
+    Trellis.Microservices.Abstractions (the foundational package every
+    consumer references). Opt in per package by setting
+    <TrellisShipsCookbook>true</TrellisShipsCookbook>.
+  -->
+  <ItemGroup Condition="'$(TrellisShipsCookbook)' == 'true'">
+    <None Include="$(MSBuildThisFileDirectory)docs\docfx_project\api_reference\trellis-api-microservices-cookbook.md"
+          Pack="true" PackagePath="trellis\" />
+  </ItemGroup>
+
+  <Target Name="LintApiReference"
+          BeforeTargets="Build"
+          Condition="'$(TrellisEnableApiReferenceLint)' == 'true' AND '$(DesignTimeBuild)' != 'true' AND '$(BuildingForLiveUnitTesting)' != 'true'">
+    <Exec Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)docs/lint-api-reference.ps1&quot;" />
+  </Target>
+</Project>

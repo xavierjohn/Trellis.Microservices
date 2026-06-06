@@ -1,0 +1,78 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <PropertyGroup Label="General">
+    <Authors>Xavier John</Authors>
+    <Company>$(Authors)</Company>
+    <Copyright>Copyright © $(Company) 2026. All rights reserved.</Copyright>
+    <NeutralLanguage>en</NeutralLanguage>
+    <DefaultLanguage>en-US</DefaultLanguage>
+    <SolutionDir Condition=" '$(SolutionDir)' == '' OR '$(SolutionDir)' == '*Undefined if not building a solution or within Visual Studio*' ">$(MSBuildThisFileDirectory)</SolutionDir>
+    <IsTestProject>$(MSBuildProjectName.EndsWith('.Tests'))</IsTestProject>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>Latest</LangVersion>
+    <AnalysisLevel>latest-Recommended</AnalysisLevel>
+    <RepositoryType>git</RepositoryType>
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+
+    <!-- Trim/AOT analyzers for library compatibility (opt-in) -->
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+  </PropertyGroup>
+
+  <PropertyGroup Label="nuget">
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/xavierjohn/Trellis.Microservices.git</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/xavierjohn/Trellis.Microservices</PackageProjectUrl>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Build">
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Coverage">
+    <!-- Exclude T4-generated and source-generated files from coverage to keep metrics meaningful -->
+    <ExcludeByFile>$(ExcludeByFile);**/*.g.cs;**/System.Text.RegularExpressions.Generator/**/*.cs</ExcludeByFile>
+    <Exclude>$(Exclude);[System.Text.RegularExpressions.Generated.*]*</Exclude>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="$(MSBuildProjectName).Tests" />
+    <PackageReference Include="Nerdbank.GitVersioning" PrivateAssets="all" />
+    <PackageReference Include="DotNet.ReproducibleBuilds" PrivateAssets="All"/>
+    <PackageReference Include="Roslynator.Analyzers" PrivateAssets="all" />
+  </ItemGroup>
+
+  <PropertyGroup Condition=" '$(IsTestProject)' == 'false' ">
+    <RootNamespace>Trellis</RootNamespace>
+    <AssemblyName>$(MSBuildProjectName)</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
+    <DebugType>embedded</DebugType>
+
+    <!-- Detect breaking changes in library APIs -->
+    <EnablePackageValidation>true</EnablePackageValidation>
+
+    <!-- Release hygiene mirrors xavierjohn/Trellis: DotNet.ReproducibleBuilds bundles
+         Microsoft.SourceLink.GitHub and sets Deterministic, ContinuousIntegrationBuild
+         (under CI), EmbedUntrackedSources. The properties below cover what it does NOT
+         enable by default. DebugType=embedded puts the PDB inside the DLL so symbols
+         travel with the binary; symbol packages are intentionally disabled. -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+  </PropertyGroup>
+
+  <ItemGroup Condition=" '$(IsTestProject)' == 'false' ">
+    <None Include="$(MSBuildThisFileDirectory)icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ImportGroup Condition=" '$(IsTestProject)' == 'true' ">
+    <Import Project="$(MSBuildThisFileDirectory)build/test.props"/>
+  </ImportGroup>
+
+</Project>
