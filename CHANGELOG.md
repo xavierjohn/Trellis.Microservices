@@ -10,6 +10,32 @@ All notable changes to this repository will be documented in this file. The form
 
 ## 0.1-alpha.d — Cookbook Recipes 1+2 inlined + UseTrellisInternalJwtActor references cleaned up
 
+### Changed
+
+- **Cookbook Recipes 1 + 2 are now real bodies, not placeholders.** PR #1 shipped Recipes 1 + 2 as placeholder stubs (carry-over from `xavierjohn/Trellis` Recipes 33 + 34 was deferred). This release inlines the full content (~382 lines) with the namespace + extension-method rewrites applied:
+  - `Trellis.Asp.Authorization` references rewritten to `Trellis.Microservices.AspNetCore`.
+  - The two composition-root code blocks now call `services.AddTrellisInternalJwtActorProvider(...)` directly (the upstream `TrellisServiceBuilder.UseTrellisInternalJwtActor` slot was removed in the coordinated upstream cleanup).
+  - Recipe 1 heading rename: anchor changes from `#recipe-1--strict-addjwtbearer-validation-profile-for-usetrellisinternaljwtactor` to `#recipe-1--strict-addjwtbearer-validation-profile-for-addtrellisinternaljwtactorprovider`. Cross-doc links in `trellis-api-internal-jwt.md` and `trellis-api-yarp.md` updated.
+  - Cross-references to upstream-only recipes (Recipe 7, Recipe 24, Recipe 32) point at full GitHub URLs against `xavierjohn/Trellis`.
+- **`trellis-api-internal-jwt.md` composition-root guidance corrected.** PR #1's text recommended `services.AddTrellis(b => b.UseTrellisInternalJwtActor(...))` as the "preferred" entry point — but the upstream slot was being removed in coordinated v3 cleanup. Rewrote to show only `services.AddTrellisInternalJwtActorProvider(...)` and updated the migration table row to acknowledge the call-site change is real.
+- **Top-level repo `README.md` Recipe 1 caption** + **`Trellis.Microservices.AspNetCore` package `README.md` / `NUGET_README.md` slot-status notes** updated to reflect post-cleanup reality (slot removed in v3; use the direct extension).
+- **Test XmlDoc** in `AddTrellisInternalJwtActorProviderTests.cs` no longer claims companion tests live in `Trellis.ServiceDefaults.Tests.TrellisServiceBuilderTests` (those tests were deleted in the upstream v3 cleanup).
+
+## 0.1-alpha.c — Trellis.Yarp move + Trellis.Microservices.AspNetCore carve-out
+
+### Added
+
+- **`Trellis.Yarp` package** — gateway-side YARP integration MOVED from `xavierjohn/Trellis` (`Trellis.Yarp` package, same NuGet ID, non-breaking move). Re-mints a per-cluster internal JWT from the full Trellis `Actor`, exposes OIDC discovery + JWKS endpoints, emits redacted audit telemetry on every mint. Now depends on `Trellis.Microservices.Abstractions` for the contract claim literals (removed the internal duplicate `TrellisInternalJwtClaimNames.cs` that lived in the package source).
+- **`Trellis.Microservices.AspNetCore` package** — consumer-side counterpart CARVED OUT from `xavierjohn/Trellis`'s `Trellis.Asp.Authorization.TrellisInternalJwt*` types. **BREAKING namespace move** for P3 preview-stage adopters: `Trellis.Asp.Authorization` → `Trellis.Microservices.AspNetCore`. Type names unchanged (`TrellisInternalJwtActorProvider`, `TrellisInternalJwtActorOptions`, `TrellisInternalJwtActorOptionsValidator`, `ServiceCollectionExtensions.AddTrellisInternalJwtActorProvider`). Migration: replace `using Trellis.Asp.Authorization;` with `using Trellis.Microservices.AspNetCore;` and add a `Trellis.Microservices.AspNetCore` NuGet reference.
+- Tests: 120 from `Trellis.Yarp.Tests` + 84 from `Trellis.Microservices.AspNetCore.Tests` (216 total across all three packages).
+
+### Notes
+
+- Both new packages reference upstream `xavierjohn/Trellis` packages (`Trellis.Authorization`, `Trellis.Core`, `Trellis.Asp`, `Trellis.Testing`) via NuGet at version `3.0.0-alpha.342` — the latest published preview at the time of this release. Future bumps stay in lock-step with upstream releases that change consumed APIs.
+- `Trellis.Microservices.AspNetCore.TrellisInternalJwtActorProvider` continues to implement `IProvideActorVaryHeaders` from upstream `Trellis.Asp.Authorization` (the interface stays in upstream). Cross-package dependency is deliberate.
+
+## 0.1-alpha.b — Abstractions package
+
 ### Added
 
 - **`Trellis.Microservices.Abstractions` package** — first package in this repo. Ships one public static class `TrellisInternalJwtClaimNames` with the canonical contract literals (`Subject`, `JwtId`, `Permissions`, `ForbiddenPermissions`, `ContractVersion`, `PermissionsCount`, `ForbiddenPermissionsCount`, `CurrentContractVersion = "1"`). Promotes the previously-internal `TrellisInternalJwtClaimNames` (from `xavierjohn/Trellis`'s `Trellis.Yarp`) to `public`, eliminating the duplication where the consumer side (`Trellis.Asp.Authorization.TrellisInternalJwtActorOptions` defaults) hard-coded the same strings by convention. AOT-compatible, no runtime dependencies.
@@ -28,4 +54,3 @@ All notable changes to this repository will be documented in this file. The form
 - `.github/copilot-instructions.md` — agent instructions with the "P4 invariants — never regress" 14-row checklist for any change touching minter / validator / provider code.
 - `.github/dependabot.yml` — weekly GitHub Actions and NuGet updates.
 - `docs/lint-api-reference.{ps1,md}` — API-reference doc lint (opt-in per project via `<TrellisEnableApiReferenceLint>true</TrellisEnableApiReferenceLint>`).
-

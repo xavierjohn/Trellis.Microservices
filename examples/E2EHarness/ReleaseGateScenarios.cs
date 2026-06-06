@@ -13,18 +13,19 @@ using Microsoft.AspNetCore.TestHost;
 /// <para>The scenarios divide into two categories:</para>
 /// <list type="bullet">
 /// <item><description>
-/// <b>Gateway-to-downstream flow</b> (HappyPath, NoActor, CrossAudience, KeyRotation):
+/// <b>Gateway-to-downstream flow</b> (Scenarios 1-3 — HappyPath, NoActor, CrossAudience):
 /// a real YARP gateway TestServer routes a real HTTP request through a real
 /// destination TestServer via the in-process forwarder. Verifies the actual YARP
 /// pipeline + transform + downstream JwtBearer + TrellisInternalJwtActorProvider
 /// chain works end-to-end.
 /// </description></item>
 /// <item><description>
-/// <b>Downstream-only attack tokens</b> (Sentinel*, *CountMismatch, StrictClaimShape*,
-/// ExpectedIssuer*): the test hand-crafts a malformed JWT signed with the trusted
-/// key and POSTs it to the destination's /probe endpoint, asserting the downstream
-/// fails closed (HTTP 401). These bypass the gateway because the attack is in the
-/// shape of the token, not in the gateway's behavior.
+/// <b>Downstream-only attack tokens</b> (Scenarios 4-8 — Sentinel*, *CountMismatch,
+/// StrictClaimShape*, ExpectedIssuer*): the test hand-crafts a malformed JWT signed
+/// with the trusted key and sends it as the <c>Authorization: Bearer</c> header on
+/// a GET request to the destination's <c>/probe</c> endpoint, asserting the
+/// downstream fails closed (HTTP 401). These bypass the gateway because the attack
+/// is in the shape of the token, not in the gateway's behavior.
 /// </description></item>
 /// </list>
 /// </summary>

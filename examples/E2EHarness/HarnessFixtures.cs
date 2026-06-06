@@ -27,7 +27,8 @@ using Microsoft.IdentityModel.Tokens;
 ///   with AddJwtBearer + AddTrellisInternalJwtActorProvider). For "attack" scenarios
 ///   that need a hand-crafted JWT (e.g. sentinel-stripped, count-mismatch), the test
 ///   skips the gateway, mints its own JWT signed with the harness's RSA key, and
-///   POSTs it directly to the destination.</para>
+///   issues a GET request to the destination's <c>/probe</c> endpoint with
+///   <c>Authorization: Bearer &lt;token&gt;</c>.</para>
 /// </summary>
 internal static class HarnessFixtures
 {
@@ -50,7 +51,8 @@ internal static class HarnessFixtures
     /// <summary>
     /// Stands up the destination TestServer with the strict cookbook Recipe 1 profile:
     /// MapInboundClaims=false, TryAllIssuerSigningKeys=false, ClockSkew=30s, pinned
-    /// asymmetric algorithms, ValidIssuer/ValidAudience required.
+    /// asymmetric algorithms, ValidIssuer/ValidAudience required, RequireExpirationTime
+    /// + RequireSignedTokens + ValidateIssuerSigningKey enforced.
     /// </summary>
     /// <remarks>
     /// The destination's <c>/probe</c> endpoint requires authentication and dumps the
@@ -58,7 +60,7 @@ internal static class HarnessFixtures
     /// either:
     /// <list type="bullet">
     /// <item><description>HTTP 200 + expected actor shape (happy path / contract-conformant token),</description></item>
-    /// <item><description>HTTP 401 (downstream fail-closed posture — actor provider returned <c>Maybe.None</c>, mediator pipeline 401s), or</description></item>
+    /// <item><description>HTTP 401 (downstream fail-closed posture — actor provider returned <c>Maybe.None</c>; the <c>/probe</c> endpoint handler directly returns 401 on <c>Maybe.None</c>), or</description></item>
     /// <item><description>HTTP 401 from <c>AddJwtBearer</c> itself (signature / aud / iss / exp failure before the actor provider runs).</description></item>
     /// </list>
     /// </remarks>
@@ -89,6 +91,7 @@ internal static class HarnessFixtures
                                 ValidateAudience = true,
                                 ValidAudience = expectedAudience,
                                 ValidateLifetime = true,
+                                RequireExpirationTime = true,
                                 RequireSignedTokens = true,
                                 ValidateIssuerSigningKey = true,
                                 IssuerSigningKey = trustedSigningKey,

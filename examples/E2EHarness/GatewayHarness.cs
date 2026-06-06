@@ -82,9 +82,13 @@ internal static class GatewayHarness
             => Task.FromResult(actor is null ? Maybe<Actor>.None : Maybe<Actor>.From(actor));
     }
 
-    private sealed class TestServerForwarderHttpClientFactory(HttpMessageHandler handler) : IForwarderHttpClientFactory
+    private sealed class TestServerForwarderHttpClientFactory(HttpMessageHandler handler) : IForwarderHttpClientFactory, IDisposable
     {
+        // disposeHandler:false on the invoker because the singleton owns the handler
+        // for the lifetime of the gateway host; dispose it once on host teardown.
         public HttpMessageInvoker CreateClient(ForwarderHttpClientContext context)
             => new(handler, disposeHandler: false);
+
+        public void Dispose() => handler.Dispose();
     }
 }

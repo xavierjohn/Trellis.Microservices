@@ -24,7 +24,7 @@ destination TestServer (AddJwtBearer + AddTrellisInternalJwtActorProvider)
   /probe endpoint  →  ProbeResponse { id, permissions, forbiddenPermissions, attributes }
 ```
 
-For "attack token" scenarios (sentinel-stripped, count-mismatch, comma-joined shape, etc.) the harness skips the gateway entirely: the test hand-crafts a malformed JWT signed with the harness's RSA key and POSTs it directly to the destination. This isolates the contract-integrity check on the consumer side.
+For "attack token" scenarios (sentinel-stripped, count-mismatch, comma-joined shape, etc.) the harness skips the gateway entirely: the test hand-crafts a malformed JWT signed with the harness's RSA key and sends a `GET /probe` request directly to the destination with `Authorization: Bearer <token>`. This isolates the contract-integrity check on the consumer side.
 
 ## The 8 scenarios
 
@@ -66,7 +66,7 @@ The scenarios cover the consumer-facing P4 invariants from `.github/copilot-inst
 | No-actor `Authorization` clear | **This harness, Scenario 2** |
 | Audit-log redaction | `Trellis.Yarp/tests/TrellisActorForwardingRequestTransformTests.cs` |
 | Strict claim shape | **This harness, Scenario 7** |
-| Mandatory consumer flags (`MapInboundClaims=false`, `TryAllIssuerSigningKeys=false`) | **This harness fixture configures both (`HarnessFixtures.StartDestinationAsync`)** as part of every gateway/downstream scenario; their effects are exercised by Scenarios 1-3 indirectly (the contract claim-name resolution + signing-key resolution paths only succeed when the flags are correctly set). The wrong-`kid` / multi-key-ring fallback path that `TryAllIssuerSigningKeys=false` specifically protects against is NOT exercised end-to-end by these 8 scenarios — that invariant is covered by `Trellis.Yarp/tests/TrellisDiscoveryEndpointTests.cs` (gateway side) and would warrant a dedicated future scenario here against a JwtBearer instance configured with a multi-key `IssuerSigningKeys` collection. |
+| Mandatory consumer flags (`MapInboundClaims=false`, `TryAllIssuerSigningKeys=false`) | **This harness fixture configures both** (`HarnessFixtures.StartDestinationAsync`) consistent with Recipe 1's mandatory profile. It does NOT end-to-end prove either flag's protective effect: the actor provider has explicit `sub` short↔long fallback that lets the contract work even if `MapInboundClaims=true`, and the wrong-`kid` fallback path that `TryAllIssuerSigningKeys=false` specifically blocks is not exercised with a single-key fixture. The gateway-side rotation-ring is covered by `Trellis.Yarp/tests/TrellisDiscoveryEndpointTests.cs`; a dedicated multi-key-ring + wrong-`kid` scenario here would warrant a future addition. |
 
 ## License
 
