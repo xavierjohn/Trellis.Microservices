@@ -1,0 +1,59 @@
+﻿name: "CodeQL"
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+  # CodeQL is intentionally NOT run on every pull_request. The repo's
+  # security signal comes primarily from Roslyn analyzers, the upstream
+  # Trellis.Analyzers set, and the test suite (231 tests including the
+  # 8 release-gate E2E scenarios in examples/E2EHarness). Per-PR CodeQL
+  # adds ~5 minutes of CI compute with no measured value for a library
+  # codebase. Drift detection is preserved by the push-to-main run and
+  # the weekly schedule below; ad-hoc runs remain available via
+  # workflow_dispatch. (Same posture as xavierjohn/Trellis.)
+  schedule:
+    - cron: '43 23 * * 4'
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'csharp' ]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0  # needed for nbgv
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v5
+      with:
+        global-json-file: global.json
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v4
+      with:
+        languages: ${{ matrix.language }}
+        build-mode: manual
+
+    - name: Restore dependencies
+      run: dotnet restore Trellis.Microservices.slnx
+
+    - name: Build
+      run: dotnet build Trellis.Microservices.slnx --no-restore -c Release
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v4
+      with:
+        category: "/language:${{matrix.language}}"
