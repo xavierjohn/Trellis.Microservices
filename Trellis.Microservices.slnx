@@ -3,6 +3,12 @@
     <File Path=".github/copilot-instructions.md" />
     <File Path=".github/dependabot.yml" />
   </Folder>
+  <Folder Name="/.github/workflows/">
+    <File Path=".github/workflows/build.yml" />
+    <File Path=".github/workflows/codeql.yml" />
+    <File Path=".github/workflows/publish-alpha.yml" />
+    <File Path=".github/workflows/publish.yml" />
+  </Folder>
   <Folder Name="/Docs/api_reference/">
     <File Path="docs/docfx_project/api_reference/trellis-api-microservices-cookbook.md" />
     <File Path="docs/docfx_project/api_reference/trellis-api-microservices-abstractions.md" />
