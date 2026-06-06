@@ -40,5 +40,9 @@
     <File Path="Trellis.Microservices.AspNetCore/README.md" />
     <File Path="Trellis.Microservices.AspNetCore/NUGET_README.md" />
   </Folder>
+  <Folder Name="/examples/">
+    <Project Path="examples/E2EHarness/E2EHarness.Tests.csproj" />
+    <File Path="examples/E2EHarness/README.md" />
+  </Folder>
 </Solution>
 

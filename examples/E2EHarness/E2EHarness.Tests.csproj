@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <!-- The E2E harness intentionally exercises non-AOT code paths (YARP, JwtBearer)
+         that the per-package analyzers also opt out of; turn them off here for clarity. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Global usings for terse scenario code (each scenario reads as a single ~30-line vignette). -->
+    <Using Include="Trellis.Authorization" />
+    <Using Include="Trellis.Microservices.Abstractions" />
+    <Using Include="Trellis.Microservices.AspNetCore" />
+    <Using Include="Trellis.Yarp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Trellis.Microservices.Abstractions\src\Trellis.Microservices.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Trellis.Microservices.AspNetCore\src\Trellis.Microservices.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\Trellis.Yarp\src\Trellis.Yarp.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" />
+    <PackageReference Include="Yarp.ReverseProxy" />
+  </ItemGroup>
+
+</Project>
