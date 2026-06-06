@@ -22,4 +22,11 @@
     <File Path="nuget.config" />
     <File Path="version.json" />
   </Folder>
+  <Folder Name="/Trellis.Microservices.Abstractions/">
+    <Project Path="Trellis.Microservices.Abstractions/src/Trellis.Microservices.Abstractions.csproj" />
+    <Project Path="Trellis.Microservices.Abstractions/tests/Trellis.Microservices.Abstractions.Tests.csproj" />
+    <File Path="Trellis.Microservices.Abstractions/src/README.md" />
+    <File Path="Trellis.Microservices.Abstractions/src/NUGET_README.md" />
+  </Folder>
 </Solution>
+
