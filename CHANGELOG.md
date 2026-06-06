@@ -11,7 +11,7 @@ All notable changes to this repository will be documented in this file. The form
 
 ### Notes
 
-- The pre-existing `internal` copy of `TrellisInternalJwtClaimNames` in `xavierjohn/Trellis`'s `Trellis.Yarp` will be removed in the upcoming PR C (which moves `Trellis.Yarp` into this repo and rewires it to depend on `Trellis.Microservices.Abstractions`).
+- The pre-existing `internal` copy of `TrellisInternalJwtClaimNames` (currently in `xavierjohn/Trellis`'s `Trellis.Yarp/src/`) is the duplication risk this package eliminates. When `Trellis.Yarp` lands in this repo via PR C, that version will reference `Trellis.Microservices.Abstractions.TrellisInternalJwtClaimNames` instead of carrying its own internal copy. **Removal of the internal copy from the upstream `xavierjohn/Trellis` repository is a separate PR (PR D) against that repo**, documented in that repo's CHANGELOG — not this one.
 
 ## 0.1-alpha — Initial bootstrap
 
