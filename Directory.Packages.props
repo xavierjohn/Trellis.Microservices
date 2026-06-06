@@ -1,0 +1,48 @@
+﻿<Project>
+  <!--
+    Central package management. Versions are pinned here; project .csproj files
+    add <PackageReference Include="..." /> without a Version attribute.
+
+    Starts narrow with packages this repository will actually consume across
+    Trellis.Microservices.Abstractions / Trellis.Yarp / Trellis.Microservices.AspNetCore.
+    Add new entries as packages land.
+  -->
+
+  <!-- Runtime -->
+  <ItemGroup>
+    <PackageVersion Include="DotNet.ReproducibleBuilds" Version="2.0.2" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.19.1" />
+    <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.19.1" />
+    <PackageVersion Include="Nerdbank.GitVersioning" Version="3.9.50" />
+    <PackageVersion Include="Roslynator.Analyzers" Version="4.15.0" />
+    <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />
+  </ItemGroup>
+
+  <!-- Test -->
+  <ItemGroup>
+    <PackageVersion Include="FluentAssertions" Version="7.2.2" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.5.0" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.0.6" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="1.9.1" />
+    <PackageVersion Include="xunit.v3" Version="3.2.2" />
+  </ItemGroup>
+
+  <!--
+    Upstream Trellis packages from xavierjohn/Trellis. Pinned to the lowest
+    versions known to expose the surfaces this repo's packages consume.
+    Bump in lock-step with upstream releases that change consumed APIs.
+  -->
+  <ItemGroup>
+    <PackageVersion Include="Trellis.Asp" Version="3.0.0-alpha" />
+    <PackageVersion Include="Trellis.Authorization" Version="3.0.0-alpha" />
+    <PackageVersion Include="Trellis.Core" Version="3.0.0-alpha" />
+    <PackageVersion Include="Trellis.ServiceDefaults" Version="3.0.0-alpha" />
+  </ItemGroup>
+</Project>
