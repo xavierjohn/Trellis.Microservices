@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>NUGET_README.md</PackageReadmeFile>
+    <Description>Consumer-side counterpart to Trellis.Yarp. Hydrates the full Trellis Actor (id + permissions + forbidden permissions + ABAC attributes) from a verified gateway-minted internal JWT, enforcing the strict sentinel + count claim contract that defends the deny-overrides-allow invariant against a proxy stripping the deny set. AOT-compatible.</Description>
+    <PackageTags>trellis;microservices;aspnetcore;jwt;actor;authorization;tenant-abac;ddd</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TrellisApiRefName>internal-jwt</TrellisApiRefName>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Trellis.Microservices.AspNetCore.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../NUGET_README.md" Pack="true" PackagePath="\" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <!-- Upstream Trellis primitives + actor-provider interfaces from xavierjohn/Trellis. -->
+    <PackageReference Include="Trellis.Core" />
+    <PackageReference Include="Trellis.Authorization" />
+    <PackageReference Include="Trellis.Asp" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Shared contract constants — TrellisInternalJwtClaimNames. -->
+    <ProjectReference Include="..\..\Trellis.Microservices.Abstractions\src\Trellis.Microservices.Abstractions.csproj" />
+  </ItemGroup>
+</Project>
