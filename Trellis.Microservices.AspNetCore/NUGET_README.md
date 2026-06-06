@@ -30,7 +30,7 @@ builder.Services.AddTrellisInternalJwtActorProvider(o =>
 });
 ```
 
-> Upstream `Trellis.ServiceDefaults` ≤ `3.0.0-alpha.342` binds `TrellisServiceBuilder.UseTrellisInternalJwtActor` to the legacy `Trellis.Asp.Authorization` provider; use the direct `AddTrellisInternalJwtActorProvider(...)` shown above until upstream is rewired.
+> The previous `TrellisServiceBuilder.UseTrellisInternalJwtActor` slot in upstream `Trellis.ServiceDefaults` was removed in v3 cleanup when this provider moved here; call `AddTrellisInternalJwtActorProvider(...)` directly as shown above.
 
 ## Pairs with
 

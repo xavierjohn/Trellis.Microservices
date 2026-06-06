@@ -30,7 +30,7 @@ builder.Services.AddTrellisInternalJwtActorProvider(o =>
 });
 ```
 
-> **NOTE on `TrellisServiceBuilder.UseTrellisInternalJwtActor`.** Upstream `Trellis.ServiceDefaults` (versions through `3.0.0-alpha.342`) still binds the slot to the legacy `Trellis.Asp.Authorization.TrellisInternalJwtActorProvider`. Until upstream is rewired (planned: a follow-up PR against `xavierjohn/Trellis`), use the direct `services.AddTrellisInternalJwtActorProvider(...)` shown above. Calling `services.AddTrellis(b => b.UseTrellisInternalJwtActor(...))` today registers the upstream legacy provider, not the one from this package.
+> **NOTE on composition root.** This package's `TrellisInternalJwtActorProvider` is registered via the direct `services.AddTrellisInternalJwtActorProvider(...)` extension shown above. The previous `TrellisServiceBuilder.UseTrellisInternalJwtActor` slot in upstream `Trellis.ServiceDefaults` was removed in the v3 cleanup that coincided with this provider moving to this package — both the slot and the upstream `Trellis.Asp.Authorization.TrellisInternalJwt*` implementation it bound to are gone in current upstream releases.
 
 ## Documentation
 

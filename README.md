@@ -14,7 +14,7 @@ This repository ships three NuGet packages:
 
 The canonical end-to-end guide lives in [`trellis-api-microservices-cookbook.md`](docs/docfx_project/api_reference/trellis-api-microservices-cookbook.md):
 
-- **Recipe 1** — strict `AddJwtBearer` validation profile for `UseTrellisInternalJwtActor`.
+- **Recipe 1** — strict `AddJwtBearer` validation profile for `AddTrellisInternalJwtActorProvider`.
 - **Recipe 2** — microservices behind YARP, end-to-end (mint → project per cluster → publish discovery → consume downstream → rotate keys → emergency revocation).
 
 ## Threat model
