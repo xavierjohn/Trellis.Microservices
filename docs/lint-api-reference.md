@@ -8,7 +8,7 @@ Run it locally with:
 pwsh docs/lint-api-reference.ps1
 ```
 
-The solution build runs the same script through `docs\Trellis.DocsLint.csproj`, so failures are emitted as MSBuild errors.
+The MSBuild integration is the `LintApiReference` target in `Directory.Build.targets`, opt-in per project via `<TrellisEnableApiReferenceLint>true</TrellisEnableApiReferenceLint>`. When enabled, the target invokes `pwsh docs/lint-api-reference.ps1` before `Build` and propagates rule violations as MSBuild errors so they fail the build.
 
 ## Rules
 
