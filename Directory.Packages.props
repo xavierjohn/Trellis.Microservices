@@ -31,18 +31,20 @@
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.5.0" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.0.6" />
     <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="1.9.1" />
+    <PackageVersion Include="Moq" Version="4.20.72" />
     <PackageVersion Include="xunit.v3" Version="3.2.2" />
   </ItemGroup>
 
   <!--
-    Upstream Trellis packages from xavierjohn/Trellis. Pinned to the lowest
-    versions known to expose the surfaces this repo's packages consume.
+    Upstream Trellis packages from xavierjohn/Trellis. Pinned to the latest
+    versions published to nuget.org.
     Bump in lock-step with upstream releases that change consumed APIs.
   -->
   <ItemGroup>
-    <PackageVersion Include="Trellis.Asp" Version="3.0.0-alpha" />
-    <PackageVersion Include="Trellis.Authorization" Version="3.0.0-alpha" />
-    <PackageVersion Include="Trellis.Core" Version="3.0.0-alpha" />
-    <PackageVersion Include="Trellis.ServiceDefaults" Version="3.0.0-alpha" />
+    <PackageVersion Include="Trellis.Asp" Version="3.0.0-alpha.342" />
+    <PackageVersion Include="Trellis.Authorization" Version="3.0.0-alpha.342" />
+    <PackageVersion Include="Trellis.Core" Version="3.0.0-alpha.342" />
+    <PackageVersion Include="Trellis.ServiceDefaults" Version="3.0.0-alpha.342" />
+    <PackageVersion Include="Trellis.Testing" Version="3.0.0-alpha.342" />
   </ItemGroup>
 </Project>

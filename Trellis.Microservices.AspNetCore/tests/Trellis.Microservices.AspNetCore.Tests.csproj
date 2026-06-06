@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <Using Include="Trellis.Authorization" />
+    <Using Include="Trellis.Microservices.AspNetCore" />
+    <Using Include="Trellis.Microservices.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\src\Trellis.Microservices.AspNetCore.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Moq" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <!-- Upstream Trellis.Testing helpers from xavierjohn/Trellis. -->
+    <PackageReference Include="Trellis.Testing" />
+  </ItemGroup>
+</Project>

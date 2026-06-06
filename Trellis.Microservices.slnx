@@ -28,5 +28,17 @@
     <File Path="Trellis.Microservices.Abstractions/src/README.md" />
     <File Path="Trellis.Microservices.Abstractions/src/NUGET_README.md" />
   </Folder>
+  <Folder Name="/Trellis.Yarp/">
+    <Project Path="Trellis.Yarp/src/Trellis.Yarp.csproj" />
+    <Project Path="Trellis.Yarp/tests/Trellis.Yarp.Tests.csproj" />
+    <File Path="Trellis.Yarp/README.md" />
+    <File Path="Trellis.Yarp/NUGET_README.md" />
+  </Folder>
+  <Folder Name="/Trellis.Microservices.AspNetCore/">
+    <Project Path="Trellis.Microservices.AspNetCore/src/Trellis.Microservices.AspNetCore.csproj" />
+    <Project Path="Trellis.Microservices.AspNetCore/tests/Trellis.Microservices.AspNetCore.Tests.csproj" />
+    <File Path="Trellis.Microservices.AspNetCore/README.md" />
+    <File Path="Trellis.Microservices.AspNetCore/NUGET_README.md" />
+  </Folder>
 </Solution>
 

@@ -358,3 +358,9 @@ MigrationBackup/
 /CoverageReport
 /coverage
 /.claude
+
+# API reference markdown files synced from upstream Trellis.* NuGets to .github/
+# by the build/Trellis.ApiReference.targets mechanism. These are build artifacts that
+# track the upstream package version; do not commit them. Run dotnet build to populate.
+.github/trellis-api-*.md
+

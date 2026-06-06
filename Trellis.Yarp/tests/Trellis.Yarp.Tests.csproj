@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <Using Include="Trellis.Authorization" />
+    <Using Include="Trellis.Yarp" />
+    <Using Include="Trellis.Microservices.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\src\Trellis.Yarp.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Moq" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <!-- Upstream Trellis.Testing helpers from xavierjohn/Trellis (AuthenticationSchemeBuilder etc.) -->
+    <PackageReference Include="Trellis.Testing" />
+  </ItemGroup>
+</Project>
