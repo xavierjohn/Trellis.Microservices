@@ -104,14 +104,13 @@ Open the dashboard URL Aspire printed at startup. You'll see:
 
 ### Cross-audience attack — what the per-cluster audience pin protects against
 
-The gateway's `AudiencePerCluster = c => c.ClusterId` ensures that any token sent **through** the gateway carries the audience of the cluster you targeted — `aud=orders` for `/api/orders/*`, `aud=billing` for `/api/billing/*`. So you can't demonstrate the attack by reconfiguring just one side; ALL THREE of these would have to change in concert before `/api/billing` could actually accept an `aud=orders` token:
+The gateway's `AudiencePerCluster = c => c.ClusterId` ensures that any token sent **through** the gateway carries the audience of the cluster you targeted — `aud=orders` for `/api/orders/*`, `aud=billing` for `/api/billing/*`. So you can't demonstrate the attack by reconfiguring just one side; ALL of these would have to change in concert before `/api/billing` could actually accept an `aud=orders` token:
 
-1. `o.Audience` on Billing's `AddJwtBearer`
-2. `TokenValidationParameters.ValidAudience` on Billing's strict validation profile
-3. `TrellisInternalJwtActorProvider`'s `ExpectedAudience = "billing"` (the actor-provider's defense-in-depth cross-check that runs AFTER JwtBearer accepts the token)
-4. AND the gateway's `AudiencePerCluster` lambda
+1. `TokenValidationParameters.ValidAudience = "billing"` on Billing's strict validation profile (the JwtBearer-layer audience check)
+2. `TrellisInternalJwtActorProvider.ExpectedAudience = "billing"` (the actor-provider's defense-in-depth audience cross-check that runs AFTER JwtBearer accepts the token; rejects with `Maybe<Actor>.None` on mismatch)
+3. The gateway's `AudiencePerCluster` lambda
 
-That's the point — the framework's defense layers compose. Three independent audience checks on the consumer side (JwtBearer's `ValidAudience`, JwtBearer's `Audience`, `TrellisInternalJwtActorProvider`'s `ExpectedAudience`) all have to be bypassed for the attack to succeed.
+That's the point — the framework's defense layers compose. Two independent audience checks on the consumer side (JwtBearer's `ValidAudience` and `TrellisInternalJwtActorProvider`'s `ExpectedAudience`) both have to be bypassed for the attack to succeed. (Note: `JwtBearerOptions.Audience` is also set on Billing but is redundant when `ValidAudience` is explicitly configured — JwtBearer only copies `Audience` into `ValidAudience` if the latter is empty.)
 
 **Reproducing manually is intentionally hard.** The Gateway never logs raw JWTs (security best-practice: `Trellis.Yarp.TrellisActorForwardingTransformProvider` only logs `kid`, `jti`, `iss`, `aud`, `exp`, and counts). The Gateway → Orders hop in this sample uses plain HTTP (`https+http://orders` resolves to `http://localhost:NNNN` via Aspire service discovery), so an HTTP-aware sniffer/proxy on that hop is enough to capture an `aud=orders` JWT; if you add HTTPS downstream endpoints, you'd need an HTTPS-decrypting proxy (Fiddler, Charles, mitmproxy). Once captured, replay it to Billing's Aspire-assigned direct port:
 

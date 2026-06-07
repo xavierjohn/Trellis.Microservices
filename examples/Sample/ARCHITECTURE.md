@@ -71,7 +71,7 @@ flowchart LR
 
 ## 2. Project + dependency graph
 
-Five sample projects, two packages from this repo, three upstream Trellis packages. The arrows show `<ProjectReference>` / `<PackageReference>` direction.
+Five sample projects, two packages from this repo, five upstream Trellis packages. The arrows show `<ProjectReference>` / `<PackageReference>` direction.
 
 ```mermaid
 flowchart TD
@@ -97,6 +97,8 @@ flowchart TD
         TA[Trellis.Asp]:::upstream
         TAU[Trellis.Authorization]:::upstream
         TC[Trellis.Core]:::upstream
+        TM[Trellis.Mediator]:::upstream
+        TP[Trellis.Primitives]:::upstream
     end
 
     AH --> GW
@@ -116,6 +118,8 @@ flowchart TD
     O --> TA
     O --> TAU
     O --> TC
+    O --> TM
+    O --> TP
 
     B --> AN
     B --> TA
@@ -136,7 +140,8 @@ flowchart TD
 | `Sample.AppHost` | References the three runnable projects so Aspire can boot them and inject service-discovery env vars via `WithReference`. |
 | `Sample.ServiceDefaults` | Aspire-standard pattern: a single `AddServiceDefaults()` call that every service shares. Owns OTEL exporter wiring, HttpClient resilience, service-discovery resolution, health-check endpoints. |
 | `Gateway` | `Trellis.Yarp` for `AddTrellisActorForwarding` + `MapTrellisDiscoveryEndpoint`. `Trellis.Asp` for `AddDevelopmentActorProvider`. `Trellis.Authorization` for `Actor`. `Trellis.Core` for `Result`/`Maybe`. |
-| `Orders`, `Billing` | `Trellis.Microservices.AspNetCore` for `AddTrellisInternalJwtActorProvider`. Same upstream stack as Gateway. |
+| `Billing` | `Trellis.Microservices.AspNetCore` for `AddTrellisInternalJwtActorProvider`. `Trellis.Asp` + `Trellis.Authorization` + `Trellis.Core` (same trust-boundary-only stack as Gateway minus the YARP/forwarding bits). |
+| `Orders` | Same trust-boundary stack as Billing, PLUS `Trellis.Mediator` (for `AddMediator` + `AddTrellisBehaviors` + `AddResourceAuthorization` — wires the resource-auth pipeline) and `Trellis.Primitives` (for `OrderId : RequiredString<OrderId>` — the typed identifier the resource loader bridges on). |
 
 ## 3. Happy-path request sequence
 
@@ -327,13 +332,12 @@ sequenceDiagram
 
 **Why this matters:** without per-cluster audiences, every downstream would share one audience (say `"internal"`) and a token captured from one service trivially grants access to all the others. With `AudiencePerCluster = c => c.ClusterId`, each downstream pins a unique audience and the blast radius of any captured token is one cluster.
 
-**How to reproduce this locally.** The attack relies on the attacker bypassing the gateway and going directly to Billing's port. The gateway always mints `aud=billing` for `/api/billing/*` (via the per-cluster pin), so you can't reproduce the attack by just calling `/api/billing` through the gateway with reconfigured options — relaxing the cross-audience reject requires tampering with THREE independent audience checks on Billing:
+**How to reproduce this locally.** The attack relies on the attacker bypassing the gateway and going directly to Billing's port. The gateway always mints `aud=billing` for `/api/billing/*` (via the per-cluster pin), so you can't reproduce the attack by just calling `/api/billing` through the gateway with reconfigured options — relaxing the cross-audience reject requires tampering with TWO independent consumer-side audience checks on Billing:
 
-- `o.Audience` on `AddJwtBearer`
-- `TokenValidationParameters.ValidAudience` on the strict validation profile
+- `TokenValidationParameters.ValidAudience` on the strict validation profile (the JwtBearer-layer audience check)
 - `TrellisInternalJwtActorProvider.ExpectedAudience` (defense-in-depth cross-check that runs AFTER JwtBearer accepts the token; rejects with `Maybe<Actor>.None` on mismatch)
 
-AND the gateway's `AudiencePerCluster` lambda. The realistic path:
+AND the gateway's `AudiencePerCluster` lambda. (`JwtBearerOptions.Audience` is set on Billing but is redundant when `ValidAudience` is explicitly configured — JwtBearer only copies `Audience` into `ValidAudience` if the latter is empty.) The realistic path:
 
 1. **Capture an `aud=orders` JWT.** The sample's gateway intentionally never logs raw JWTs (see `Trellis.Yarp.TrellisActorForwardingTransformProvider` — only `kid`/`jti`/`iss`/`aud`/`exp` are logged, never the compact JWS). The Gateway → Orders hop in this sample uses plain HTTP (the `https+http://orders` service-discovery URI resolves to `http://localhost:NNNN`), so an HTTP-aware sniffer/proxy on that hop is enough; if you add HTTPS downstream endpoints, you'd need an HTTPS-decrypting proxy (Fiddler, Charles, mitmproxy).
 2. **Find Billing's direct port** in the Aspire dashboard Resources tab.
