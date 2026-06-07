@@ -300,7 +300,7 @@ A concrete example of the JWT for a `GET /api/orders` from `alice` with `tenant_
 
 ## 7. Cross-audience attack — what fail-closed looks like
 
-Hypothetical attacker captures an `aud=orders` JWT and replays it directly against the Billing service. The framework's per-cluster audience pinning blocks it transparently.
+Hypothetical attacker captures an `aud=orders` JWT and replays it directly against the Billing service (bypassing the gateway). The framework's per-cluster audience pinning blocks it transparently.
 
 ```mermaid
 sequenceDiagram
@@ -310,7 +310,7 @@ sequenceDiagram
     participant B as Billing
     Note over A,G: 1. Capture step — a legitimate orders request
     A->>G: GET /api/orders<br/>X-Test-Actor: {tenant_id, ...}
-    G-->>A: 200 + Actor JSON<br/>(JWT captured from any<br/>network sniff or proxy log)
+    G-->>A: 200 + OrderResponse[]<br/>(JWT captured from any<br/>network sniff or proxy log)
     Note over A,B: 2. Replay step — re-use the captured token at billing
     A->>B: GET /api/billing<br/>Authorization: Bearer <JWT aud=orders>
     B->>B: JwtBearer validation:<br/>ValidAudience = "billing"<br/>token.aud = "orders"
@@ -319,7 +319,13 @@ sequenceDiagram
 
 **Why this matters:** without per-cluster audiences, every downstream would share one audience (say `"internal"`) and a token captured from one service trivially grants access to all the others. With `AudiencePerCluster = c => c.ClusterId`, each downstream pins a unique audience and the blast radius of any captured token is one cluster.
 
-To see this in action: edit `Billing/Program.cs`, change `o.Audience = "billing"` to `"orders"`, restart Aspire, hit `/api/billing` — you'll get 200 (because Billing now wrongly accepts orders tokens). Revert, restart, hit again — 401.
+**How to reproduce this locally.** The attack relies on the attacker bypassing the gateway and going directly to Billing's port. The gateway always mints `aud=billing` for `/api/billing/*` (via the per-cluster pin), so you can't reproduce the attack by just calling `/api/billing` through the gateway with reconfigured options — both `o.Audience` and `TokenValidationParameters.ValidAudience` on Billing would need to be relaxed AND the gateway's `AudiencePerCluster` would need to be tampered with. The realistic path is:
+
+1. Grab an `aud=orders` JWT from any gateway mint event in the Aspire dashboard's Console tab.
+2. Find Billing's Aspire-assigned direct port from the Resources tab.
+3. `curl -H "Authorization: Bearer <orders-token>" http://localhost:NNNN/api/billing` → 401 (Billing's `ValidAudience = "billing"` rejects `aud=orders`).
+
+See `examples/E2EHarness` for the in-process automated regression test that exercises this attack against a token-replay shape.
 
 ## 8. Missing `tenant_id` attack — `RequiredAttributes` in action
 

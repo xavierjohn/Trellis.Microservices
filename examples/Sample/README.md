@@ -102,9 +102,17 @@ Open the dashboard URL Aspire printed at startup. You'll see:
 
 ## What to try next
 
-### Cross-audience attack — should fail closed
+### Cross-audience attack — what the per-cluster audience pin protects against
 
-A token minted for `/api/orders/*` carries `aud="orders"`. Billing pins `ValidAudience = "billing"`. To prove the cross-audience reject, change `o.Audience = "billing"` to `"orders"` in `Billing/Program.cs`, restart Aspire, and call `/api/billing` — you'll see 401. The framework's per-cluster audience pin is what blocks token replay across services.
+The gateway's `AudiencePerCluster = c => c.ClusterId` ensures that any token sent **through** the gateway carries the audience of the cluster you targeted — `aud=orders` for `/api/orders/*`, `aud=billing` for `/api/billing/*`. So you can't demonstrate the attack by reconfiguring just one side; both `o.Audience` AND `TokenValidationParameters.ValidAudience` on Billing would need to change, AND the gateway's per-cluster mapping would need to be tampered with, before `/api/billing` could actually accept an `aud=orders` token. That's the point — the framework's defense layers compose.
+
+To realistically demonstrate the cross-audience reject, replay a captured `aud=orders` token **directly** to Billing's Aspire-assigned port (bypassing the gateway entirely):
+
+1. From the Aspire dashboard's Console tab, grab any gateway log line emitted by `TrellisActorJwtMinter` that shows a JWT minted for the orders cluster — the JWT is included in the structured event.
+2. From the Resources tab, find Billing's direct endpoint URL (typically `http://localhost:NNNN`).
+3. `curl -H "Authorization: Bearer <orders-token>" http://localhost:NNNN/api/billing` → **401 invalid_token** (Billing's `ValidAudience = "billing"` rejects `aud=orders`).
+
+This is the realistic threat model: an attacker who controls some internal hop between services replays a captured token. The per-cluster audience pin makes the blast radius of any one captured token exactly one cluster. The framework's `examples/E2EHarness` exercises this and related attack tokens (sentinel-stripped, count-mismatched, contract-version-missing) as in-process regression tests.
 
 ### Missing-tenant_id attack — should fail closed
 

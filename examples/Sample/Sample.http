@@ -31,14 +31,15 @@
 GET {{host}}/api/orders
 X-Test-Actor: {"Id":"alice","Permissions":["orders:read","orders:write"],"ForbiddenPermissions":["orders:delete"],"Attributes":{"tenant_id":"acme-corp"}}
 
-### 2. Billing — happy path (SAME actor, DIFFERENT route)
-# Same X-Test-Actor envelope, different URL prefix. YARP matches the
-# "billing-route" cluster, AddTrellisActorForwarding mints a SEPARATE JWT with
-# audience="billing", forwards to the Billing service. Billing's JwtBearer pins
-# audience="billing" so it accepts; the token minted for /api/orders would NOT
-# validate here (per-cluster audience pinning — see scenario 6).
+### 2. Billing — happy path (DIFFERENT actor envelope, DIFFERENT route)
+# Different X-Test-Actor (this one carries billing:read instead of orders:delete
+# in ForbiddenPermissions). Different URL prefix. YARP matches the "billing-route"
+# cluster, AddTrellisActorForwarding mints a SEPARATE JWT with audience="billing",
+# forwards to the Billing service. Billing's JwtBearer pins audience="billing" so
+# it accepts; the token minted for /api/orders would NOT validate here
+# (per-cluster audience pinning — see ARCHITECTURE.md §7).
 #
-# Expected: 200 OK + "service":"billing" + same Actor as scenario 1.
+# Expected: 200 OK + "service":"billing" + Actor echoing the envelope below.
 GET {{host}}/api/billing
 X-Test-Actor: {"Id":"alice","Permissions":["orders:read","billing:read"],"ForbiddenPermissions":[],"Attributes":{"tenant_id":"acme-corp"}}
 
