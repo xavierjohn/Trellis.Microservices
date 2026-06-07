@@ -97,7 +97,7 @@ Open the dashboard URL Aspire printed at startup. You'll see:
 
 - **Resources** — `gateway`, `orders`, `billing` all "Running" with their dynamic endpoints listed.
 - **Structured logs** — pick any service from the dropdown; you'll see the Trellis mint events tagged with `kid`, `iss`, `aud`, `permissions_count` from the Gateway, and the JwtBearer validation outcomes from Orders/Billing.
-- **Traces** — every curl produces a multi-span trace: `Gateway POST` → `HttpClient GET orders` → `Orders GET /api/orders`. Click a trace to see the propagated `traceparent` flow through the system. This is the visible proof of cross-service request correlation.
+- **Traces** — every curl produces a multi-span trace: `Gateway GET` → `HttpClient GET orders` → `Orders GET /api/orders`. Click a trace to see the propagated `traceparent` flow through the system. This is the visible proof of cross-service request correlation.
 - **Metrics** — request counts, latencies, GC/CPU/runtime metrics per service.
 
 ## What to try next
@@ -106,7 +106,7 @@ Open the dashboard URL Aspire printed at startup. You'll see:
 
 The gateway's `AudiencePerCluster = c => c.ClusterId` ensures that any token sent **through** the gateway carries the audience of the cluster you targeted — `aud=orders` for `/api/orders/*`, `aud=billing` for `/api/billing/*`. So you can't demonstrate the attack by reconfiguring just one side; both `o.Audience` AND `TokenValidationParameters.ValidAudience` on Billing would need to change, AND the gateway's per-cluster mapping would need to be tampered with, before `/api/billing` could actually accept an `aud=orders` token. That's the point — the framework's defense layers compose.
 
-**Reproducing manually is intentionally hard.** The Gateway never logs raw JWTs (security best-practice: `Trellis.Yarp.TrellisActorForwardingTransformProvider` only logs `kid`, `jti`, `iss`, `aud`, `exp`, and counts). To capture an `aud=orders` JWT for replay, you would need an external HTTPS-decrypting proxy (Fiddler, Charles, mitmproxy) positioned between the Gateway and Orders. Once captured, replay it to Billing's Aspire-assigned direct port:
+**Reproducing manually is intentionally hard.** The Gateway never logs raw JWTs (security best-practice: `Trellis.Yarp.TrellisActorForwardingTransformProvider` only logs `kid`, `jti`, `iss`, `aud`, `exp`, and counts). The Gateway → Orders hop in this sample uses plain HTTP (`https+http://orders` resolves to `http://localhost:NNNN` via Aspire service discovery), so an HTTP-aware sniffer/proxy on that hop is enough to capture an `aud=orders` JWT; if you add HTTPS downstream endpoints, you'd need an HTTPS-decrypting proxy (Fiddler, Charles, mitmproxy). Once captured, replay it to Billing's Aspire-assigned direct port:
 
 ```powershell
 # From the Aspire dashboard's Resources tab, find Billing's direct endpoint (e.g. http://localhost:NNNN)
@@ -114,7 +114,7 @@ curl -H "Authorization: Bearer <captured-aud-orders-token>" http://localhost:NNN
 # → 401 invalid_token (Billing's ValidAudience = "billing" rejects aud="orders")
 ```
 
-**For an automated, in-process regression test of this exact attack pattern**, see [`examples/E2EHarness/`](../E2EHarness/README.md) — it exercises cross-audience and four other token-replay attack shapes against the same Trellis primitives the sample uses, without needing external proxy tooling.
+**For an automated, in-process regression test of the same audience-validation invariant**, see [`examples/E2EHarness/`](../E2EHarness/README.md) scenario 3 (wrong-audience token through the harness gateway). The captured-token direct-replay walkthrough above is a distinct shape that the in-process harness doesn't cover end-to-end.
 
 ### Missing-tenant_id attack — should fail closed
 

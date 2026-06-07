@@ -44,8 +44,8 @@ builder.Services.AddDevelopmentActorProvider(o =>
 // regenerates the key material also gets a fresh kid. Downstream services that
 // have a cached JWKS with the old (kid, public-key) pair will refresh on the
 // next request whose JWT carries an unknown kid — they won't fail validation
-// against stale key material. (A static kid like "sample-key-1" would let the
-// cached old public key match the new JWT's kid header but fail signature
+// against stale key material. (Reusing a static kid across restarts would let
+// the cached old public key match the new JWT's kid header but fail signature
 // verification until the JWKS cache TTL expires.)
 var rsa = RSA.Create(2048);
 var publicKeyHash = SHA256.HashData(rsa.ExportSubjectPublicKeyInfo());

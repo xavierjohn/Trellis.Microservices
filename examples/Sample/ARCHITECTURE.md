@@ -216,7 +216,13 @@ Outside Aspire, the same `https+http://orders` URL falls back to plain DNS / hos
 
 ## 5. The strict consumer validation pipeline
 
-Every inbound request to Orders/Billing flows through this gauntlet. Any failure → 401 with no body, no leak. The numbered checks below match the rows in Recipe 1 of the microservices cookbook.
+Every inbound request to Orders/Billing flows through this gauntlet. The numbered checks below match the rows in Recipe 1 of the microservices cookbook.
+
+**Failure mode notes:**
+
+- Steps 1–4 are **JwtBearer** 401 challenges. In the sample's `Development` profile, `IncludeErrorDetails = true` adds the validation failure reason (e.g. `signature_invalid`, `audience_mismatch`) to the `WWW-Authenticate` header for local debugging. Outside `Development` the flag is `false` so the failure reason is suppressed (see `Orders/Program.cs` / `Billing/Program.cs` — both gate the flag on `builder.Environment.IsDevelopment()`).
+- Steps 5–8 are **`TrellisInternalJwtActorProvider`** contract failures. JwtBearer has already accepted the token; the actor-provider returns `Maybe<Actor>.None`, so business handlers never run and callers see a 401 from the endpoint (a different 401 path than the JwtBearer-layer 401s — see §8 for a concrete example).
+- Trellis writes failures as Problem Details JSON bodies when `AddTrellisProblemDetails()` is wired; the sample defers to ASP.NET Core defaults, which keep failure bodies minimal in `Production` and verbose in `Development`. Raw JWT / Actor values are never logged or echoed.
 
 ```mermaid
 flowchart TD
@@ -321,11 +327,11 @@ sequenceDiagram
 
 **How to reproduce this locally.** The attack relies on the attacker bypassing the gateway and going directly to Billing's port. The gateway always mints `aud=billing` for `/api/billing/*` (via the per-cluster pin), so you can't reproduce the attack by just calling `/api/billing` through the gateway with reconfigured options — both `o.Audience` and `TokenValidationParameters.ValidAudience` on Billing would need to be relaxed AND the gateway's `AudiencePerCluster` would need to be tampered with. The realistic path:
 
-1. **Capture an `aud=orders` JWT.** The sample's gateway intentionally never logs raw JWTs (see `Trellis.Yarp.TrellisActorForwardingTransformProvider` — only `kid`/`jti`/`iss`/`aud`/`exp` are logged, never the compact JWS). To capture the token at the network layer you need an external HTTPS-decrypting proxy (Fiddler, Charles, mitmproxy) positioned between Gateway and Orders.
+1. **Capture an `aud=orders` JWT.** The sample's gateway intentionally never logs raw JWTs (see `Trellis.Yarp.TrellisActorForwardingTransformProvider` — only `kid`/`jti`/`iss`/`aud`/`exp` are logged, never the compact JWS). The Gateway → Orders hop in this sample uses plain HTTP (the `https+http://orders` service-discovery URI resolves to `http://localhost:NNNN`), so an HTTP-aware sniffer/proxy on that hop is enough; if you add HTTPS downstream endpoints, you'd need an HTTPS-decrypting proxy (Fiddler, Charles, mitmproxy).
 2. **Find Billing's direct port** in the Aspire dashboard Resources tab.
 3. `curl -H "Authorization: Bearer <captured-orders-token>" http://localhost:NNNN/api/billing` → 401 (Billing's `ValidAudience = "billing"` rejects `aud=orders`).
 
-The manual capture step is intentionally inconvenient — production gateways shouldn't make JWTs easy to harvest. For an automated, in-process regression test of this attack pattern (and four other replay shapes — sentinel-stripped, count-mismatched, comma-joined, contract-version-missing), see [`examples/E2EHarness`](../E2EHarness/README.md).
+The manual capture step is intentionally inconvenient — production gateways shouldn't make JWTs easy to harvest. For an automated, in-process regression test of the same audience-validation invariant, see [`examples/E2EHarness`](../E2EHarness/README.md) scenario 3 (wrong-audience token through the harness gateway). The harness exercises the same `ValidAudience` rejection from a different angle; the captured-token direct-replay walkthrough above is a distinct shape the harness doesn't cover end-to-end.
 
 ## 8. Missing `tenant_id` attack — `RequiredAttributes` in action
 
@@ -378,7 +384,7 @@ flowchart LR
 - **Resources tab** — `gateway`, `orders`, `billing` each "Running" with their endpoints. The AppHost-injected service-discovery env vars are visible in the Environment subtab.
 - **Console tab** — raw stdout per service, including the Gateway's `kid=sample-key-<16-hex>, iss=..., aud=orders, permissions_count=N, forbidden_permissions_count=N` mint log (raw JWT is intentionally never logged).
 - **Structured logs tab** — same data indexed, filterable by resource / level / property.
-- **Traces tab** — every curl creates one trace. A single `/api/orders` trace contains: `gateway POST /api/orders` (root) → `gateway HTTP forward` → `orders incoming GET /api/orders` → `orders auth + endpoint span`. The `traceparent` header propagates automatically because `HttpClientInstrumentation` adds it and `AspNetCoreInstrumentation` reads it.
+- **Traces tab** — every curl creates one trace. A single `GET /api/orders` trace contains: `gateway GET /api/orders` (root) → `gateway HTTP forward` → `orders incoming GET /api/orders` → `orders auth + endpoint span`. The `traceparent` header propagates automatically because `HttpClientInstrumentation` adds it and `AspNetCoreInstrumentation` reads it.
 - **Metrics tab** — per-service request counts, latency histograms, GC / CPU / runtime metrics.
 
 The first `/api/orders` curl also produces a JWKS-fetch span from Orders → Gateway: useful evidence that the discovery doc + JWKS were fetched once on the first request and cached for the rest.
@@ -487,7 +493,9 @@ Policy: **view-any (read), edit-mine (write — owner only).**
 
 ### 11.4. The pipeline sequence (load-once via the v4 typed accessor)
 
-The headline architectural property: **the resource is loaded EXACTLY ONCE per request**. The pipeline loads the `Order` to run `Authorize(actor, order)`. The handler then reads the **same instance** via `IAuthorizedResource<UpdateOrderCommand, Order>.GetRequiredResource()` — no second repository roundtrip.
+The headline architectural property: **for any single-resource request, the resource is loaded EXACTLY ONCE per request**. The pipeline loads the `Order` to run `Authorize(actor, order)`. The handler then reads the **same instance** via `IAuthorizedResource<UpdateOrderCommand, Order>.GetRequiredResource()` — no second repository roundtrip.
+
+> **Scope.** This invariant applies only to messages that implement `IIdentifyResource<Order, OrderId>` — `GetOrderQuery` and `UpdateOrderCommand` in this sample. `ListOrdersHandler` intentionally injects `IOrderRepository.ListAllAsync` because a list request has no single resource id and no resource-auth load to dedupe; it does NOT tick the `orders.resource_loads` per-id counter. That difference is expected, not a regression.
 
 ```mermaid
 sequenceDiagram
