@@ -2,7 +2,7 @@
 
 A working, Aspire-orchestrated sample of the Trellis internal-JWT contract with a YARP gateway and **two** downstream microservices. One `dotnet run` boots everything plus the Aspire dashboard so you can watch logs, traces, and metrics fan out across services in real time.
 
-> **Want the deep dive?** [`ARCHITECTURE.md`](./ARCHITECTURE.md) has the same content with proper Mermaid diagrams — request sequences, dependency graphs, the validation pipeline, fail-closed flows for cross-audience and missing-`tenant_id` attacks, and the Aspire telemetry plumbing.
+> **Want the deep dive?** [`ARCHITECTURE.md`](./ARCHITECTURE.md) has the same content with proper Mermaid diagrams — request sequences, dependency graphs, the validation pipeline, fail-closed flows for cross-audience and missing-`tenant_id` attacks, the Aspire telemetry plumbing, **and §11 covering John & Jill ownership-based resource authorization with the v4 typed accessor + load-once metric proof.**
 
 ```
                                                 ┌─→ /api/orders/{**}   → Orders  (aud="orders")
@@ -27,6 +27,8 @@ A working, Aspire-orchestrated sample of the Trellis internal-JWT contract with 
 - The hydrated `Actor` on each service matches what the Gateway started with — round-trip integrity proof.
 - **YARP routing** (path-based, two clusters) — same `Gateway:5001` host, different downstream depending on path prefix.
 - **Aspire telemetry** — every request flows through OTEL spans so the dashboard shows `Gateway -> Orders` and `Gateway -> Billing` traces with timings, logs, and metrics.
+- **Resource-based authorization (Orders only)** — two pre-seeded actors `john` and `jill` share the same `orders:read` + `orders:write` permissions, but **each owns one order** (john→order-1, jill→order-2). Policy: view-any (any actor with `orders:read` can GET any order) + edit-mine (only the owner can PUT). Wired via `Trellis.Mediator` + `IAuthorizeResource<Order>` + `SharedResourceLoaderById<Order, OrderId>`. The 8-cell outcome matrix (john/jill × view/edit × order-1/order-2 → 200/200/200/200/204/403/204/403) is encoded in `Sample.http` rows 10-17.
+- **Load-once invariant** — Orders handlers inject `IAuthorizedResource<TCommand, Order>` (the v4 typed accessor) instead of `IOrderRepository`, so the resource is loaded EXACTLY ONCE per request (during pipeline auth) and the handler reads the same instance. Proved by the `orders.resource_loads` counter — N curls → N counter ticks. See `ARCHITECTURE.md` §11.5 for the falsifiable demo.
 
 ## Run it
 

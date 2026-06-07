@@ -396,6 +396,198 @@ The E2E harness pins the key directly (it's a single-process test), but every pr
 
 ---
 
+## 11. Resource-based authorization — John & Jill ownership demo
+
+§§1–10 cover the **trust-boundary** half of the security pyramid: who is calling, signed by whom, with which permissions. That's necessary but **not sufficient**. The cookbook's Recipe 2 is explicit:
+
+> *Resource authorization MUST enforce `resource.OwnerId == actor.Id` (or `resource.TenantId == actor.Attributes["tenant_id"]`) as a second gate — failing closed even when the static permission check (`actor.HasPermission("orders:write")`) succeeds.*
+
+The Orders service wires this second gate using upstream `Trellis.Authorization` + `Trellis.Mediator` + the v4 typed accessor (`IAuthorizedResource<TMessage, TResource>`).
+
+### 11.1. Where in the architecture this happens
+
+Resource-based authorization runs **inside the microservice that owns the resource** — never at the gateway. The gateway's only awareness is who the caller is; it can't know whether `order-2` belongs to john or jill.
+
+```mermaid
+flowchart LR
+    classDef gw fill:#e3f2fd,stroke:#1976d2,color:#000
+    classDef svc fill:#fff3e0,stroke:#e65100,color:#000
+
+    user[curl / client]
+
+    subgraph G["Gateway concern: WHO is calling"]
+        direction TB
+        gw["Authenticate (X-Test-Actor → Actor)<br/>Mint JWT { sub=john, permissions=[orders:write], ... }<br/>Forward<br/><br/>DOES NOT KNOW any resource"]:::gw
+    end
+
+    subgraph S["Microservice concern: WHAT this caller can do to THIS resource"]
+        direction TB
+        jb["JwtBearer<br/>verify signature, iss, aud, exp"]:::svc
+        ap["TrellisInternalJwtActorProvider<br/>hydrate Actor from claims"]:::svc
+        rl["IResourceLoader&lt;Order&gt;<br/>(OrderResourceLoader → repo.FindByIdAsync)<br/>loads order-2 → ownerId='jill'"]:::svc
+        ar["IAuthorizeResource&lt;Order&gt;.Authorize(actor, order)<br/>actor.Id='john' vs order.OwnerId='jill'<br/>→ Result.Fail(Error.Forbidden)"]:::svc
+        h["Handler (IAuthorizedResource&lt;,&gt; accessor)<br/>NEVER REACHED on auth fail"]:::svc
+    end
+
+    user -->|"X-Test-Actor"| gw
+    gw -->|"Authorization: Bearer JWT"| jb
+    jb --> ap
+    ap --> rl
+    rl --> ar
+    ar -->|"Fail → 403"| user
+    ar -->|"Ok → invoke handler"| h
+```
+
+The gateway is path-blind to resource ownership. Pushing resource auth into the gateway would force it to pre-load every resource just to authorize before forwarding ("ask permission to ask permission"), duplicate the resource store, and move business rules out of the service that owns them. That's why this architecture keeps the layers split.
+
+### 11.2. Actors + resources
+
+Two pre-seeded actors share the same permissions; the authorization split happens at the **resource** layer (each has the SAME `orders:read` + `orders:write` claims):
+
+```jsonc
+// john — POST as X-Test-Actor
+{"Id":"john", "Permissions":["orders:read","orders:write"], "ForbiddenPermissions":[], "Attributes":{"tenant_id":"acme-corp"}}
+
+// jill — POST as X-Test-Actor
+{"Id":"jill", "Permissions":["orders:read","orders:write"], "ForbiddenPermissions":[], "Attributes":{"tenant_id":"acme-corp"}}
+```
+
+Orders process seeds two `Order` aggregates at startup (`Orders/Infrastructure/InMemoryOrderRepository.cs`):
+
+```
+order-1 → ownerId="john", customer="Contoso",    total=99
+order-2 → ownerId="jill", customer="Globex Inc", total=149
+```
+
+Policy: **view-any (read), edit-mine (write — owner only).**
+
+### 11.3. The outcome matrix
+
+| # | Actor | Verb | Resource              | Expected | Why |
+|---|-------|------|-----------------------|----------|-----|
+| 1 | john  | GET  | order-1 (john owns)   | **200**  | `orders:read` perm, read = view-any |
+| 2 | john  | GET  | order-2 (jill owns)   | **200**  | read = view-any allows non-owner |
+| 3 | jill  | GET  | order-1 (john owns)   | **200**  | read = view-any |
+| 4 | jill  | GET  | order-2 (jill owns)   | **200**  | trivial owner read |
+| 5 | john  | PUT  | order-1 (john owns)   | **204**  | owner → can edit |
+| 6 | john  | PUT  | order-2 (jill owns)   | **403**  | non-owner → `IAuthorizeResource<Order>.Authorize` returns `Error.Forbidden` |
+| 7 | jill  | PUT  | order-2 (jill owns)   | **204**  | owner → can edit |
+| 8 | jill  | PUT  | order-1 (john owns)   | **403**  | non-owner → fail-closed |
+
+`Sample.http` requests 10-17 walk this matrix. All 8 pass against the running sample.
+
+### 11.4. The pipeline sequence (load-once via the v4 typed accessor)
+
+The headline architectural property: **the resource is loaded EXACTLY ONCE per request**. The pipeline loads the `Order` to run `Authorize(actor, order)`. The handler then reads the **same instance** via `IAuthorizedResource<UpdateOrderCommand, Order>.GetRequiredResource()` — no second repository roundtrip.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor C as curl
+    participant E as Orders endpoint
+    participant M as IMediator
+    participant B as ResourceAuthorizationBehavior
+    participant L as OrderResourceLoader
+    participant R as InMemoryOrderRepository
+    participant A as Authorize(actor, order)
+    participant H as UpdateOrderHandler
+    participant Ax as IAuthorizedResource
+
+    C->>E: PUT /api/orders/order-1 + Authorization: Bearer JWT
+    E->>M: Send(UpdateOrderCommand)
+    M->>B: invoke behavior for (UpdateOrderCommand, Order, Result<Unit>)
+    B->>L: load by IIdentifyResource (Order, OrderId)
+    L->>R: FindByIdAsync(order-1) — ACL boundary
+    Note over R: ⬇ orders.resource_loads += 1<br/>⬇ LogOrderResourceLoaded
+    R-->>L: Maybe.From(order-1)
+    L-->>B: Result.Ok(order)
+    B->>A: command.Authorize(actor=john, order=john's)
+    A-->>B: Result.Ok()
+    B->>Ax: publish loaded order to accessor (per async flow)
+    B->>H: invoke handler
+    H->>Ax: GetRequiredResource()
+    Note over H,Ax: ⚠️ NO second FindByIdAsync.<br/>SAME instance the loader returned.
+    Ax-->>H: order-1 (in-memory)
+    H->>H: order.Update(customer, total)
+    H-->>B: Result.Ok(Unit.Value)
+    B->>Ax: dispose frame (orphan tasks fail-closed)
+    B-->>M: Result.Ok(Unit.Value)
+    M-->>E: 
+    E-->>C: 204 No Content
+```
+
+**Where the v4 accessor proves itself.** Compare the WRONG (legacy) and RIGHT (v4) handler shapes:
+
+```csharp
+// ❌ WRONG — handler reloads the resource the pipeline already loaded.
+public sealed class UpdateOrderHandler(IOrderRepository repo)
+    : ICommandHandler<UpdateOrderCommand, Result<Unit>>
+{
+    public async ValueTask<Result<Unit>> Handle(UpdateOrderCommand cmd, CancellationToken ct)
+    {
+        var maybe = await repo.FindByIdAsync(cmd.Id, ct);   // SECOND lookup — orders.resource_loads += 1
+        if (!maybe.TryGetValue(out var order))
+            return Result.Fail<Unit>(new Error.NotFound(ResourceRef.For<Order>(cmd.Id.Value)));
+        order.Update(cmd.Customer, cmd.Total);
+        return Result.Ok(Unit.Value);
+    }
+}
+
+// ✅ RIGHT — handler reads the loaded resource from the v4 accessor.
+public sealed class UpdateOrderHandler(IAuthorizedResource<UpdateOrderCommand, Order> authorized)
+    : ICommandHandler<UpdateOrderCommand, Result<Unit>>
+{
+    public ValueTask<Result<Unit>> Handle(UpdateOrderCommand cmd, CancellationToken ct)
+    {
+        authorized.GetRequiredResource().Update(cmd.Customer, cmd.Total);   // no repo touch
+        return new(Result.Ok(Unit.Value));
+    }
+}
+```
+
+The sample's `UpdateOrderHandler` and `GetOrderHandler` are written in the RIGHT shape.
+
+### 11.5. Proving load-once with metrics
+
+The architectural claim ("we don't re-load") is not just stated — it's **measurable** end-to-end. Every call to `InMemoryOrderRepository.FindByIdAsync` increments a counter named `orders.resource_loads` (tagged with `order.id`) and emits a structured log line `OrderResourceLoaded`. Both signals flow through OTEL to the Aspire dashboard.
+
+```mermaid
+flowchart LR
+    H["Handler: authorized.GetRequiredResource()"] -.no repo call.-> Ax["IAuthorizedResource&lt;,&gt;"]
+    B["ResourceAuthorizationBehavior"] -->|"single load"| L["OrderResourceLoader"]
+    L -->|"single FindByIdAsync"| R["InMemoryOrderRepository<br/>(ACL boundary)"]
+    R -->|"Counter&lt;long&gt; += 1<br/>LogOrderResourceLoaded"| M["Aspire Dashboard<br/>Metrics + Structured Logs tabs"]
+```
+
+**Demo to run yourself:**
+
+1. Boot the sample (`dotnet run --project Sample.AppHost`).
+2. Send `GET /api/orders/order-1` (Sample.http request #10) six times.
+3. Open the Aspire dashboard Metrics tab, filter by service `orders`, find `orders.resource_loads`.
+4. Verify the counter rose by exactly **6** (one per request). Filter by `order.id="order-1"`.
+5. To **break** the property, swap `IAuthorizedResource<GetOrderQuery, Order>` for `IOrderRepository` in `GetOrderHandler.cs` and re-fetch in `Handle`. Send 6 more requests. Counter rises by **12** (each request now hits the repo twice). Revert to see it return to 6 per 6 requests.
+
+That contrast IS the proof that the v4 accessor pattern is intact in this codebase — and the safety net that flags any regression.
+
+### 11.6. Where the relevant code lives
+
+| Concern | File |
+|---|---|
+| Domain | `Orders/Domain/OrderId.cs` (`RequiredString<OrderId>`), `Orders/Domain/Order.cs` (aggregate w/ `Update(...)`) |
+| Repository (ACL boundary + metric tick) | `Orders/Infrastructure/InMemoryOrderRepository.cs` |
+| Loader bridge to ResourceAuth | `Orders/Infrastructure/OrderResourceLoader.cs` (`SharedResourceLoaderById<Order, OrderId>`) |
+| Counter + structured log | `Orders/Infrastructure/OrdersMetrics.cs` |
+| Query + handler | `Orders/Application/GetOrderQuery.cs`, `GetOrderHandler.cs` |
+| Command + handler | `Orders/Application/UpdateOrderCommand.cs`, `UpdateOrderHandler.cs` |
+| List | `Orders/Application/ListOrdersQuery.cs`, `ListOrdersHandler.cs` |
+| Wire-up | `Orders/Program.cs` — `AddMediator(o => o.ServiceLifetime = Scoped)` + `AddTrellisBehaviors()` + `AddResourceAuthorization(typeof(Order).Assembly)` |
+
+### 11.7. Why Billing intentionally stays trust-boundary-only
+
+`Billing/Program.cs` deliberately does NOT add `Trellis.Mediator` or `AddResourceAuthorization`. It hydrates an `Actor` from the JWT (Recipe 1 strict profile + `RequiredAttributes = ["tenant_id"]`) and echoes it back. That keeps Billing as a one-screen reference for the trust-boundary-only shape, so this file can teach BOTH halves of the pyramid by contrast: Billing = trust-boundary only, Orders = trust-boundary + resource-based.
+
+---
+
 ## Where to go from here
 
 | Want to... | Read |

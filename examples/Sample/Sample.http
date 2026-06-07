@@ -77,3 +77,103 @@ GET {{host}}/.well-known/openid-configuration
 # Downstream services fetch this once at startup, cache it, and use it to verify
 # every inbound JWT's signature. The "kid" claim on the JWT picks the matching key.
 GET {{host}}/.well-known/jwks.json
+
+###
+# ===================================================================
+# Resource-based authorization — John & Jill ownership demo
+# ===================================================================
+#
+# Two actors share the SAME permissions (orders:read + orders:write); the
+# authorization split happens at the RESOURCE layer, not the claim layer.
+# Each actor OWNS one order (seeded at Orders process startup):
+#   - order-1 → ownerId="john", customer="Contoso", total=99
+#   - order-2 → ownerId="jill", customer="Globex Inc", total=149
+#
+# Policy: view-any (read), edit-mine (write — owner-only).
+#
+# Outcome matrix (see ARCHITECTURE.md §11):
+#   - GET  /api/orders/{id} → 200 for either actor regardless of ownership
+#   - PUT  /api/orders/{id} → 204 if actor.Id == order.OwnerId, else 403
+#
+# All resource auth runs INSIDE the Orders microservice. The Gateway is
+# unaware of resource ownership; it just mints the JWT and forwards.
+#
+# Each load through InMemoryOrderRepository.FindByIdAsync increments the
+# `orders.resource_loads` counter (visible in Aspire dashboard Metrics tab).
+# Handlers inject IAuthorizedResource<,> instead of IOrderRepository, so the
+# counter ticks exactly ONCE per request — proving the v4 typed-accessor
+# pattern eliminates the duplicate load.
+
+@john = {"Id":"john","Permissions":["orders:read","orders:write"],"ForbiddenPermissions":[],"Attributes":{"tenant_id":"acme-corp"}}
+@jill = {"Id":"jill","Permissions":["orders:read","orders:write"],"ForbiddenPermissions":[],"Attributes":{"tenant_id":"acme-corp"}}
+
+### 9. List all orders (any actor with orders:read)
+GET {{host}}/api/orders
+X-Test-Actor: {{john}}
+
+### 10. John GETs order-1 (his) → 200 (view-any)
+GET {{host}}/api/orders/order-1
+X-Test-Actor: {{john}}
+
+### 11. John GETs order-2 (jill's) → 200 (view-any allows non-owner read)
+GET {{host}}/api/orders/order-2
+X-Test-Actor: {{john}}
+
+### 12. Jill GETs order-1 (john's) → 200 (view-any)
+GET {{host}}/api/orders/order-1
+X-Test-Actor: {{jill}}
+
+### 13. Jill GETs order-2 (hers) → 200
+GET {{host}}/api/orders/order-2
+X-Test-Actor: {{jill}}
+
+### 14. John PUTs order-1 (his) → 204 No Content (write-mine: owner can edit)
+PUT {{host}}/api/orders/order-1
+X-Test-Actor: {{john}}
+Content-Type: application/json
+
+{
+  "Customer": "Contoso (updated by john)",
+  "Total": 109.99
+}
+
+### 15. John PUTs order-2 (jill's) → 403 Forbidden (write-mine: non-owner blocked)
+PUT {{host}}/api/orders/order-2
+X-Test-Actor: {{john}}
+Content-Type: application/json
+
+{
+  "Customer": "Globex (john tried to edit)",
+  "Total": 0.01
+}
+
+### 16. Jill PUTs order-2 (hers) → 204
+PUT {{host}}/api/orders/order-2
+X-Test-Actor: {{jill}}
+Content-Type: application/json
+
+{
+  "Customer": "Globex Inc (updated by jill)",
+  "Total": 159.99
+}
+
+### 17. Jill PUTs order-1 (john's) → 403 (non-owner blocked)
+PUT {{host}}/api/orders/order-1
+X-Test-Actor: {{jill}}
+Content-Type: application/json
+
+{
+  "Customer": "Contoso (jill tried to edit)",
+  "Total": 0.01
+}
+
+###
+# ===================================================================
+# Load-once proof — orders.resource_loads counter
+# ===================================================================
+# Send #10–#13 six times via the "Send Request" button. After 6 sends of #10
+# the Aspire dashboard's Metrics tab should show
+# `orders.resource_loads{order_id="order-1"}` increased by exactly 6 (not 12).
+# That difference is the v4 typed-accessor — handlers read the SAME order
+# instance the ResourceAuthorizationBehavior loaded, without re-querying the
+# repository. See ARCHITECTURE.md §11.5.

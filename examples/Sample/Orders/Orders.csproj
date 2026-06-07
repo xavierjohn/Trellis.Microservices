@@ -8,6 +8,8 @@
     <IsAotCompatible>false</IsAotCompatible>
     <EnableAotAnalyzer>false</EnableAotAnalyzer>
     <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <!-- Sample project, not packed: skip XML-doc generation so CS1591 doesn't fire on demo types. -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,10 +22,15 @@
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
     <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" />
     <PackageReference Include="Microsoft.IdentityModel.Tokens" />
-    <!-- Upstream Trellis primitives used by the actor provider. -->
+    <!-- Mediator (Martin Othamar) — source-generator + abstractions. -->
+    <PackageReference Include="Mediator.Abstractions" />
+    <PackageReference Include="Mediator.SourceGenerator" PrivateAssets="all" OutputItemType="Analyzer" />
+    <!-- Upstream Trellis primitives used by the actor provider + mediator pipeline. -->
     <PackageReference Include="Trellis.Asp" />
     <PackageReference Include="Trellis.Authorization" />
     <PackageReference Include="Trellis.Core" />
+    <PackageReference Include="Trellis.Mediator" />
+    <PackageReference Include="Trellis.Primitives" />
   </ItemGroup>
 
 </Project>
