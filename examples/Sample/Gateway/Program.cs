@@ -37,16 +37,28 @@ builder.Services.AddDevelopmentActorProvider(o =>
 });
 
 // Fresh per-startup RSA signing key. Production would persist the key + rotate via
-// PreviousSigningKeys; this is a sample, so a process-lifetime ephemeral key keeps
-// the demo zero-config. The JWKS endpoint publishes the public component.
+// PreviousSigningKeys (see microservices cookbook Recipe 1 "Key-rotation runbook");
+// this is a sample, so a process-lifetime ephemeral key keeps the demo zero-config.
+// The JWKS endpoint publishes the public component.
 //
 // kid is derived from a hash of the public key bytes so a gateway restart that
-// regenerates the key material also gets a fresh kid. Downstream services that
-// have a cached JWKS with the old (kid, public-key) pair will refresh on the
-// next request whose JWT carries an unknown kid — they won't fail validation
-// against stale key material. (Reusing a static kid across restarts would let
-// the cached old public key match the new JWT's kid header but fail signature
-// verification until the JWKS cache TTL expires.)
+// regenerates the key material also gets a fresh kid. The dynamic kid prevents
+// the failure mode where consumers' cached JWKS holds the old (kid, public-key)
+// pair, a new JWT carries the same kid header, the cached old key MATCHES on
+// kid but FAILS on signature, and the request is rejected until the JWKS
+// cache TTL expires. With a dynamic kid, the consumer's cache MISSES on kid
+// and JwtBearer falls back to a JWKS refresh (driven by
+// SecurityTokenSignatureKeyNotFoundException), pulling the new key.
+//
+// NOTE: this is a HOT-RESTART recovery property, NOT a production key-rotation
+// procedure. Real key rotation is two-phase: (1) pre-publish the new key in
+// JWKS while still signing with the old key, (2) probe every consumer to
+// confirm JWKS convergence, (3) flip SigningCredentials to the new key while
+// keeping the old key in PreviousSigningKeys through the
+// token_lifetime + ClockSkew + safety_margin overlap window, (4) drop the
+// retired key. Bypassing the pre-publish/probe phase by flipping signers
+// directly causes rejected requests for any consumer whose JWKS cache hasn't
+// been forced to refresh yet. See the cookbook for the runbook.
 var rsa = RSA.Create(2048);
 var publicKeyHash = SHA256.HashData(rsa.ExportSubjectPublicKeyInfo());
 var kid = Convert.ToHexString(publicKeyHash, 0, 8); // first 16 hex chars = 64 bits of pubkey hash

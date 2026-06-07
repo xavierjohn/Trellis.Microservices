@@ -218,11 +218,13 @@ Outside Aspire, the same `https+http://orders` URL falls back to plain DNS / hos
 
 Every inbound request to Orders/Billing flows through this gauntlet. The numbered checks below match the rows in Recipe 1 of the microservices cookbook.
 
-**Failure mode notes:**
+**Failure mode notes — three distinct 401 response paths:**
 
-- Steps 1–4 are **JwtBearer** 401 challenges. In the sample's `Development` profile, `IncludeErrorDetails = true` adds the validation failure reason (e.g. `signature_invalid`, `audience_mismatch`) to the `WWW-Authenticate` header for local debugging. Outside `Development` the flag is `false` so the failure reason is suppressed (see `Orders/Program.cs` / `Billing/Program.cs` — both gate the flag on `builder.Environment.IsDevelopment()`).
-- Steps 5–8 are **`TrellisInternalJwtActorProvider`** contract failures. JwtBearer has already accepted the token; the actor-provider returns `Maybe<Actor>.None`, so business handlers never run and callers see a 401 from the endpoint (a different 401 path than the JwtBearer-layer 401s — see §8 for a concrete example).
-- Trellis writes failures as Problem Details JSON bodies when `AddTrellisProblemDetails()` is wired; the sample defers to ASP.NET Core defaults, which keep failure bodies minimal in `Production` and verbose in `Development`. Raw JWT / Actor values are never logged or echoed.
+- **Path A: JwtBearer challenges (steps 1–4).** Standard ASP.NET Core 401 with `WWW-Authenticate: Bearer` header. In the sample's `Development` profile, `IncludeErrorDetails = true` adds the validation failure reason (e.g. `signature_invalid`, `audience_mismatch`) to the `WWW-Authenticate` header for local debugging. Outside `Development` the flag is `false` so the failure reason is suppressed (see `Orders/Program.cs` / `Billing/Program.cs` — both gate the flag on `builder.Environment.IsDevelopment()`).
+- **Path B: Orders mediator-pipeline failures (steps 5–8 surfacing through endpoints that dispatch via `IMediator.Send`).** Failures from `TrellisInternalJwtActorProvider`, `ResourceAuthorizationBehavior`, etc. become `Result.Fail(Error.AuthenticationRequired | Error.Forbidden | Error.NotFound | ...)`. The Orders endpoints call `result.ToHttpResponse(...)` which writes a Trellis Problem Details JSON body (`application/problem+json`) via `Trellis.Asp.ResponseFailureWriter` — automatically, no `AddTrellisProblemDetails()` call required. Field values come from the closed `Error` ADT (kind + code), never from raw JWT or Actor contents.
+- **Path C: Billing actor-provider failures (the manual endpoint path).** Billing doesn't use Mediator — its endpoint resolves `IActorProvider`, calls `GetCurrentActorAsync()`, and on `Maybe<Actor>.None` returns bare `Results.Unauthorized()`. That's a 401 with no body — the simplest possible failure response, the deliberate shape for a service that hasn't adopted the Mediator pipeline.
+
+Across all three paths: raw JWT, Actor, and `X-Test-Actor` envelope values are never logged or echoed in response bodies.
 
 ```mermaid
 flowchart TD
@@ -241,7 +243,7 @@ flowchart TD
     ISS -- yes --> AUD{3. aud contains<br/>ValidAudience?}:::gate
     AUD -- no --> X3[401 invalid_token<br/>aud mismatch<br/>= cross-audience attack]:::fail
 
-    AUD -- yes --> EXP{4. exp - ClockSkew &gt; now<br/>nbf - ClockSkew &lt; now?}:::gate
+    AUD -- yes --> EXP{4. exp + ClockSkew &gt; now<br/>nbf - ClockSkew &lt; now?}:::gate
     EXP -- no --> X4[401 invalid_token<br/>expired or not-yet-valid]:::fail
 
     EXP -- yes --> SENT{5. trellis_actor_contract_version<br/>present and = expected?}:::gate
@@ -325,7 +327,13 @@ sequenceDiagram
 
 **Why this matters:** without per-cluster audiences, every downstream would share one audience (say `"internal"`) and a token captured from one service trivially grants access to all the others. With `AudiencePerCluster = c => c.ClusterId`, each downstream pins a unique audience and the blast radius of any captured token is one cluster.
 
-**How to reproduce this locally.** The attack relies on the attacker bypassing the gateway and going directly to Billing's port. The gateway always mints `aud=billing` for `/api/billing/*` (via the per-cluster pin), so you can't reproduce the attack by just calling `/api/billing` through the gateway with reconfigured options — both `o.Audience` and `TokenValidationParameters.ValidAudience` on Billing would need to be relaxed AND the gateway's `AudiencePerCluster` would need to be tampered with. The realistic path:
+**How to reproduce this locally.** The attack relies on the attacker bypassing the gateway and going directly to Billing's port. The gateway always mints `aud=billing` for `/api/billing/*` (via the per-cluster pin), so you can't reproduce the attack by just calling `/api/billing` through the gateway with reconfigured options — relaxing the cross-audience reject requires tampering with THREE independent audience checks on Billing:
+
+- `o.Audience` on `AddJwtBearer`
+- `TokenValidationParameters.ValidAudience` on the strict validation profile
+- `TrellisInternalJwtActorProvider.ExpectedAudience` (defense-in-depth cross-check that runs AFTER JwtBearer accepts the token; rejects with `Maybe<Actor>.None` on mismatch)
+
+AND the gateway's `AudiencePerCluster` lambda. The realistic path:
 
 1. **Capture an `aud=orders` JWT.** The sample's gateway intentionally never logs raw JWTs (see `Trellis.Yarp.TrellisActorForwardingTransformProvider` — only `kid`/`jti`/`iss`/`aud`/`exp` are logged, never the compact JWS). The Gateway → Orders hop in this sample uses plain HTTP (the `https+http://orders` service-discovery URI resolves to `http://localhost:NNNN`), so an HTTP-aware sniffer/proxy on that hop is enough; if you add HTTPS downstream endpoints, you'd need an HTTPS-decrypting proxy (Fiddler, Charles, mitmproxy).
 2. **Find Billing's direct port** in the Aspire dashboard Resources tab.

@@ -104,7 +104,14 @@ Open the dashboard URL Aspire printed at startup. You'll see:
 
 ### Cross-audience attack — what the per-cluster audience pin protects against
 
-The gateway's `AudiencePerCluster = c => c.ClusterId` ensures that any token sent **through** the gateway carries the audience of the cluster you targeted — `aud=orders` for `/api/orders/*`, `aud=billing` for `/api/billing/*`. So you can't demonstrate the attack by reconfiguring just one side; both `o.Audience` AND `TokenValidationParameters.ValidAudience` on Billing would need to change, AND the gateway's per-cluster mapping would need to be tampered with, before `/api/billing` could actually accept an `aud=orders` token. That's the point — the framework's defense layers compose.
+The gateway's `AudiencePerCluster = c => c.ClusterId` ensures that any token sent **through** the gateway carries the audience of the cluster you targeted — `aud=orders` for `/api/orders/*`, `aud=billing` for `/api/billing/*`. So you can't demonstrate the attack by reconfiguring just one side; ALL THREE of these would have to change in concert before `/api/billing` could actually accept an `aud=orders` token:
+
+1. `o.Audience` on Billing's `AddJwtBearer`
+2. `TokenValidationParameters.ValidAudience` on Billing's strict validation profile
+3. `TrellisInternalJwtActorProvider`'s `ExpectedAudience = "billing"` (the actor-provider's defense-in-depth cross-check that runs AFTER JwtBearer accepts the token)
+4. AND the gateway's `AudiencePerCluster` lambda
+
+That's the point — the framework's defense layers compose. Three independent audience checks on the consumer side (JwtBearer's `ValidAudience`, JwtBearer's `Audience`, `TrellisInternalJwtActorProvider`'s `ExpectedAudience`) all have to be bypassed for the attack to succeed.
 
 **Reproducing manually is intentionally hard.** The Gateway never logs raw JWTs (security best-practice: `Trellis.Yarp.TrellisActorForwardingTransformProvider` only logs `kid`, `jti`, `iss`, `aud`, `exp`, and counts). The Gateway → Orders hop in this sample uses plain HTTP (`https+http://orders` resolves to `http://localhost:NNNN` via Aspire service discovery), so an HTTP-aware sniffer/proxy on that hop is enough to capture an `aud=orders` JWT; if you add HTTPS downstream endpoints, you'd need an HTTPS-decrypting proxy (Fiddler, Charles, mitmproxy). Once captured, replay it to Billing's Aspire-assigned direct port:
 
@@ -144,13 +151,15 @@ The gateway-side strict `AddJwtBearer` profile (for the external token) has the 
 
 ### Production-grade signing key rotation
 
-The sample generates a fresh RSA key per gateway startup (zero-config). Production should:
+The sample generates a fresh RSA key per gateway startup (zero-config). Production rotation is a **two-phase, probe-before-flip** procedure to avoid rejected requests caused by consumer JWKS caches lagging the signer:
 
-1. Persist the active key (e.g., Azure Key Vault, AWS KMS).
-2. Use `PreviousSigningKeys` during rotation: add the new key as `SigningCredentials`, keep the prior key in `PreviousSigningKeys` for the rotation overlap window (default 5-minute token lifetime + 30-second `ClockSkew` = drop after ~6 minutes).
-3. Drop the retired key from `PreviousSigningKeys` once the overlap window expires.
+1. **Persist** the active key (e.g., Azure Key Vault, AWS KMS).
+2. **Pre-publish** the new key `K_new` in the gateway's JWKS endpoint while still signing with the old key `K_old`. Both keys are now visible to consumers.
+3. **Probe convergence** — confirm every consumer has pulled the updated JWKS (e.g., via a health-check that reports the cached `kid` set, or by waiting for the JWKS cache TTL to elapse plus a safety margin).
+4. **Flip the signer** — replace `SigningCredentials` with `K_new`. Keep `K_old` in `PreviousSigningKeys` for the rotation overlap window: `token_lifetime + ClockSkew + safety_margin` (with this sample's 5-minute lifetime + 30-second `ClockSkew`, plan for ~6 minutes minimum).
+5. **Drop** the retired key from `PreviousSigningKeys` once the overlap window expires.
 
-See Recipe 1's "Key-rotation runbook" section for the operational walkthrough.
+Skipping the pre-publish + probe phase (steps 2–3) and flipping signers directly will cause rejected requests for any consumer whose JWKS cache hasn't refreshed yet — JwtBearer only refreshes JWKS on `SecurityTokenSignatureKeyNotFoundException`, AFTER the failed validation. See Recipe 1's "Key-rotation runbook" in the [microservices cookbook](../../docs/docfx_project/api_reference/trellis-api-microservices-cookbook.md) for the full operational walkthrough.
 
 ## Project layout
 
