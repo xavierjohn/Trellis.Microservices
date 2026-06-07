@@ -3,8 +3,8 @@
 using System;
 using System.Collections.Generic;
 using System.Security.Cryptography;
-using Microsoft.Extensions.Options;
 using global::Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Options;
 
 /// <summary>
 /// Tests for <see cref="TrellisActorForwardingOptionsValidator"/>. The validator runs at

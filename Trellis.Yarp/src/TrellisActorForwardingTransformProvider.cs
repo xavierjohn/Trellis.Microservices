@@ -3,12 +3,11 @@
 using System;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using global::Yarp.ReverseProxy.Configuration;
 using global::Yarp.ReverseProxy.Transforms;
 using global::Yarp.ReverseProxy.Transforms.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Trellis.Authorization;
 
 /// <summary>

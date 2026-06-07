@@ -2,8 +2,8 @@
 
 using System;
 using System.Collections.Generic;
-using Microsoft.Extensions.Options;
 using global::Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Options;
 
 /// <summary>
 /// Validates <see cref="TrellisActorForwardingOptions"/> at host start. Catches the

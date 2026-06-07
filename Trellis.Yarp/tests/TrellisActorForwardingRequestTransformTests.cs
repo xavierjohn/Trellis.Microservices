@@ -7,17 +7,16 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Time.Testing;
 using global::Microsoft.IdentityModel.JsonWebTokens;
 using global::Microsoft.IdentityModel.Tokens;
 using global::Yarp.ReverseProxy.Configuration;
 using global::Yarp.ReverseProxy.Transforms;
 using global::Yarp.ReverseProxy.Transforms.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 
 /// <summary>
 /// Tests for the per-request <see cref="TrellisActorForwardingRequestTransform"/>

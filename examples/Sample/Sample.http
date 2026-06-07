@@ -1,0 +1,194 @@
+﻿# Trellis.Microservices Sample — REST client requests
+#
+# Works with:
+#   - VS Code: "REST Client" extension (humao.rest-client)
+#   - Visual Studio 2022 17.8+: built-in .http file support
+#   - JetBrains Rider / IntelliJ: built-in HTTP client
+#
+# Prereq: Aspire AppHost running.
+#   dotnet run --project examples/Sample/Sample.AppHost
+#
+# This boots Gateway (port 5001) + Orders + Billing and opens the Aspire dashboard
+# (https://localhost:17051 by default). Logs, traces, and metrics from all three
+# services flow into the dashboard so you can SEE the gateway -> orders / billing
+# trace span fan-out in real time.
+#
+# See examples/Sample/README.md for the full walkthrough.
+
+@host = http://localhost:5001
+
+### 1. Orders — happy path (list)
+# Sends an X-Test-Actor JSON envelope to the Gateway. The Gateway's
+# DevelopmentActorProvider parses it, AddTrellisActorForwarding mints a fresh JWT
+# (YARP matched route "orders-route", whose ClusterId is "orders";
+# AudiencePerCluster uses that ClusterId, so the JWT audience is "orders")
+# and YARP forwards to the Orders service. Orders validates via OIDC
+# discovery (fetches JWKS from Gateway), hydrates the Actor via
+# TrellisInternalJwtActorProvider, and runs ListOrdersQuery (static-
+# permission only — any actor with orders:read can list every order).
+# Open the Aspire dashboard's Traces tab to see the Gateway -> Orders span.
+#
+# Expected: 200 OK + an array of seeded OrderResponse DTOs (order-1 + order-2).
+GET {{host}}/api/orders
+X-Test-Actor: {"Id":"alice","Permissions":["orders:read","orders:write"],"ForbiddenPermissions":["orders:delete"],"Attributes":{"tenant_id":"acme-corp"}}
+
+### 2. Billing — happy path (DIFFERENT actor envelope, DIFFERENT route)
+# Different X-Test-Actor (this one carries billing:read instead of orders:delete
+# in ForbiddenPermissions). Different URL prefix. YARP matches route
+# "billing-route" (ClusterId="billing"), AddTrellisActorForwarding mints a
+# SEPARATE JWT with audience="billing", forwards to the Billing service.
+# Billing's JwtBearer pins audience="billing" so it accepts; the token minted
+# for /api/orders would NOT validate here (per-cluster audience pinning — see
+# ARCHITECTURE.md §7).
+#
+# Expected: 200 OK + "service":"billing" + Actor echoing the envelope below.
+GET {{host}}/api/billing
+X-Test-Actor: {"Id":"alice","Permissions":["orders:read","billing:read"],"ForbiddenPermissions":[],"Attributes":{"tenant_id":"acme-corp"}}
+
+### 3. Orders — different tenant (carol / contoso)
+# Proves a non-empty tenant_id passes Orders' RequiredAttributes gate (without
+# tenant_id the request would 401 — see scenario 4). Orders does NOT echo
+# Actor.Attributes in its response (it returns OrderResponse[]); to inspect
+# the hydrated tenant_id on the downstream side, send the same X-Test-Actor
+# to /api/billing (Billing's endpoint echoes the full Actor).
+GET {{host}}/api/orders
+X-Test-Actor: {"Id":"carol","Permissions":["orders:read"],"ForbiddenPermissions":[],"Attributes":{"tenant_id":"contoso"}}
+
+### 4. Missing tenant_id — fail-closed via RequiredAttributes
+# Expected: 401 Unauthorized. JwtBearer accepts the token (signature / iss /
+# aud / lifetime all OK). The downstream Orders service's
+# TrellisInternalJwtActorProvider has RequiredAttributes = ["tenant_id"] so
+# the actor provider returns Maybe.None when the tenant claim is absent,
+# which short-circuits the business handler. This is an actor-provider
+# contract failure (NOT a JwtBearer invalid_token failure); the framework's
+# defense against a downstream ever evaluating a request without knowing
+# which tenant it belongs to.
+GET {{host}}/api/orders
+X-Test-Actor: {"Id":"bob","Permissions":["orders:read"],"ForbiddenPermissions":[],"Attributes":{}}
+
+### 5. No actor header at all
+# Expected: 401 Unauthorized. DevelopmentActorProvider falls back to the default
+# actor ("guest" with no permissions/attributes); without tenant_id the downstream
+# fails closed.
+GET {{host}}/api/orders
+
+### 6. Unknown route — YARP no-match
+# Expected: 404 Not Found. Proves YARP is actually doing path-based routing —
+# only /api/orders/{**catch-all} and /api/billing/{**catch-all} are mapped.
+GET {{host}}/api/unknown
+X-Test-Actor: {"Id":"alice","Permissions":[],"ForbiddenPermissions":[],"Attributes":{"tenant_id":"acme"}}
+
+### 7. OIDC discovery document (published by Gateway via MapTrellisDiscoveryEndpoint)
+# This is what the downstream services' AddJwtBearer(o.Authority = "http://localhost:5001")
+# auto-fetches to learn where the JWKS lives.
+GET {{host}}/.well-known/openid-configuration
+
+### 8. JWKS document (the Gateway's public signing keys)
+# Downstream services fetch discovery + JWKS LAZILY on first JWT validation,
+# cache the metadata + signing keys, and refresh on metadata-cache expiry or
+# when an inbound JWT carries an unknown kid. The "kid" JWT HEADER PARAMETER
+# (not a claim) selects which JWKS key to verify against.
+GET {{host}}/.well-known/jwks.json
+
+###
+# ===================================================================
+# Resource-based authorization — John & Jill ownership demo
+# ===================================================================
+#
+# Two actors share the SAME permissions (orders:read + orders:write); the
+# authorization split happens at the RESOURCE layer, not the claim layer.
+# Each actor OWNS one order (seeded at Orders process startup):
+#   - order-1 → ownerId="john", customer="Contoso", total=99
+#   - order-2 → ownerId="jill", customer="Globex Inc", total=149
+#
+# Policy: view-any (read), edit-mine (write — owner-only).
+#
+# Outcome matrix (see ARCHITECTURE.md §11):
+#   - GET  /api/orders/{id} → 200 for either actor regardless of ownership
+#   - PUT  /api/orders/{id} → 204 if actor.Id == order.OwnerId, else 403
+#
+# All resource auth runs INSIDE the Orders microservice. The Gateway is
+# unaware of resource ownership; it just mints the JWT and forwards.
+#
+# Each load through InMemoryOrderRepository.FindByIdAsync increments the
+# `orders.resource_loads` counter (visible in Aspire dashboard Metrics tab).
+# The single-resource handlers (GetOrderHandler / UpdateOrderHandler) inject
+# IAuthorizedResource<,> instead of IOrderRepository, so the counter ticks
+# exactly ONCE per GET/PUT-by-id request — proving the v4 typed-accessor
+# pattern eliminates the duplicate load. (ListOrdersHandler intentionally
+# uses IOrderRepository.ListAllAsync because list isn't a single-resource
+# auth path — no IIdentifyResource<,>.)
+
+@john = {"Id":"john","Permissions":["orders:read","orders:write"],"ForbiddenPermissions":[],"Attributes":{"tenant_id":"acme-corp"}}
+@jill = {"Id":"jill","Permissions":["orders:read","orders:write"],"ForbiddenPermissions":[],"Attributes":{"tenant_id":"acme-corp"}}
+
+### 9. List all orders (any actor with orders:read)
+GET {{host}}/api/orders
+X-Test-Actor: {{john}}
+
+### 10. John GETs order-1 (his) → 200 (view-any)
+GET {{host}}/api/orders/order-1
+X-Test-Actor: {{john}}
+
+### 11. John GETs order-2 (jill's) → 200 (view-any allows non-owner read)
+GET {{host}}/api/orders/order-2
+X-Test-Actor: {{john}}
+
+### 12. Jill GETs order-1 (john's) → 200 (view-any)
+GET {{host}}/api/orders/order-1
+X-Test-Actor: {{jill}}
+
+### 13. Jill GETs order-2 (hers) → 200
+GET {{host}}/api/orders/order-2
+X-Test-Actor: {{jill}}
+
+### 14. John PUTs order-1 (his) → 204 No Content (write-mine: owner can edit)
+PUT {{host}}/api/orders/order-1
+X-Test-Actor: {{john}}
+Content-Type: application/json
+
+{
+  "Customer": "Contoso (updated by john)",
+  "Total": 109.99
+}
+
+### 15. John PUTs order-2 (jill's) → 403 Forbidden (write-mine: non-owner blocked)
+PUT {{host}}/api/orders/order-2
+X-Test-Actor: {{john}}
+Content-Type: application/json
+
+{
+  "Customer": "Globex (john tried to edit)",
+  "Total": 0.01
+}
+
+### 16. Jill PUTs order-2 (hers) → 204
+PUT {{host}}/api/orders/order-2
+X-Test-Actor: {{jill}}
+Content-Type: application/json
+
+{
+  "Customer": "Globex Inc (updated by jill)",
+  "Total": 159.99
+}
+
+### 17. Jill PUTs order-1 (john's) → 403 (non-owner blocked)
+PUT {{host}}/api/orders/order-1
+X-Test-Actor: {{jill}}
+Content-Type: application/json
+
+{
+  "Customer": "Contoso (jill tried to edit)",
+  "Total": 0.01
+}
+
+###
+# ===================================================================
+# Load-once proof — orders.resource_loads counter
+# ===================================================================
+# Send #10–#13 six times via the "Send Request" button. After 6 sends of #10
+# the Aspire dashboard's Metrics tab should show
+# `orders.resource_loads{order.id="order-1"}` increased by exactly 6 (not 12).
+# That difference is the v4 typed-accessor — handlers read the SAME order
+# instance the ResourceAuthorizationBehavior loaded, without re-querying the
+# repository. See ARCHITECTURE.md §11.5.

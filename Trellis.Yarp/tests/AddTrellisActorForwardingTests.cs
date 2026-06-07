@@ -1,13 +1,11 @@
 ﻿namespace Trellis.Yarp.Tests;
 
 using System;
-using System.Linq;
 using System.Security.Cryptography;
+using global::Microsoft.IdentityModel.Tokens;
+using global::Yarp.ReverseProxy.Transforms.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using global::Microsoft.IdentityModel.Tokens;
-using global::Yarp.ReverseProxy;
-using global::Yarp.ReverseProxy.Transforms.Builder;
 
 /// <summary>
 /// Tests for <see cref="TrellisActorForwardingServiceCollectionExtensions.AddTrellisActorForwarding"/>.

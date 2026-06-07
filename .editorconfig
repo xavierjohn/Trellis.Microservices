@@ -240,6 +240,10 @@ dotnet_diagnostic.CA1200.severity = warning
 dotnet_diagnostic.CA1309.severity = warning
 dotnet_diagnostic.CA1311.severity = warning
 dotnet_diagnostic.CA1805.severity = warning
+# IDE0005 (unused usings) — promoted from default 'silent' to 'warning' so that
+# TreatWarningsAsErrors + EnforceCodeStyleInBuild fails the build on dead usings.
+# Requires GenerateDocumentationFile=true to detect violations reliably.
+dotnet_diagnostic.IDE0005.severity = warning
 csharp_prefer_system_threading_lock = true:suggestion
 
 [*.{cs,vb}]

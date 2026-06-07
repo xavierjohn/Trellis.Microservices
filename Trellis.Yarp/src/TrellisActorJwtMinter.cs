@@ -5,10 +5,10 @@ using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Security.Claims;
-using Microsoft.Extensions.Options;
 using global::Microsoft.IdentityModel.JsonWebTokens;
 using global::Microsoft.IdentityModel.Tokens;
 using global::Yarp.ReverseProxy.Configuration;
+using Microsoft.Extensions.Options;
 using Trellis.Authorization;
 using Trellis.Microservices.Abstractions;
 

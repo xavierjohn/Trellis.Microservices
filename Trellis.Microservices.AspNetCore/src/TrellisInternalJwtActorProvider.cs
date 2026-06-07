@@ -14,7 +14,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Trellis.Asp.Authorization;
 using Trellis.Authorization;
-using Trellis.Microservices.Abstractions;
 
 /// <summary>
 /// <see cref="IActorProvider"/> that hydrates the FULL <see cref="Actor"/> surface
