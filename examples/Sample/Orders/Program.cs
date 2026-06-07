@@ -135,6 +135,12 @@ app.Run();
 
 // === Wire-format DTOs (kept inline for readability — single Program.cs scan) ===
 
+// Intentionally NOT validated — see Order.Update for the rationale. A null
+// Customer or negative Total deserializes successfully here and flows
+// straight into the aggregate, which stores it. The sample's focus is the
+// auth pipeline; production would either add FluentValidation here or
+// switch UpdateOrderCommand to IValidate so Trellis.Mediator's
+// ValidationBehavior runs before resource auth.
 internal sealed record UpdateOrderRequest(string Customer, decimal Total);
 
 internal sealed record OrderResponse(string Id, string OwnerId, string Customer, decimal Total)

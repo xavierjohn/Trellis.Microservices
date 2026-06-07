@@ -106,13 +106,15 @@ Open the dashboard URL Aspire printed at startup. You'll see:
 
 The gateway's `AudiencePerCluster = c => c.ClusterId` ensures that any token sent **through** the gateway carries the audience of the cluster you targeted — `aud=orders` for `/api/orders/*`, `aud=billing` for `/api/billing/*`. So you can't demonstrate the attack by reconfiguring just one side; both `o.Audience` AND `TokenValidationParameters.ValidAudience` on Billing would need to change, AND the gateway's per-cluster mapping would need to be tampered with, before `/api/billing` could actually accept an `aud=orders` token. That's the point — the framework's defense layers compose.
 
-To realistically demonstrate the cross-audience reject, replay a captured `aud=orders` token **directly** to Billing's Aspire-assigned port (bypassing the gateway entirely):
+**Reproducing manually is intentionally hard.** The Gateway never logs raw JWTs (security best-practice: `Trellis.Yarp.TrellisActorForwardingTransformProvider` only logs `kid`, `jti`, `iss`, `aud`, `exp`, and counts). To capture an `aud=orders` JWT for replay, you would need an external HTTPS-decrypting proxy (Fiddler, Charles, mitmproxy) positioned between the Gateway and Orders. Once captured, replay it to Billing's Aspire-assigned direct port:
 
-1. From the Aspire dashboard's Console tab, grab any gateway log line emitted by `TrellisActorJwtMinter` that shows a JWT minted for the orders cluster — the JWT is included in the structured event.
-2. From the Resources tab, find Billing's direct endpoint URL (typically `http://localhost:NNNN`).
-3. `curl -H "Authorization: Bearer <orders-token>" http://localhost:NNNN/api/billing` → **401 invalid_token** (Billing's `ValidAudience = "billing"` rejects `aud=orders`).
+```powershell
+# From the Aspire dashboard's Resources tab, find Billing's direct endpoint (e.g. http://localhost:NNNN)
+curl -H "Authorization: Bearer <captured-aud-orders-token>" http://localhost:NNNN/api/billing
+# → 401 invalid_token (Billing's ValidAudience = "billing" rejects aud="orders")
+```
 
-This is the realistic threat model: an attacker who controls some internal hop between services replays a captured token. The per-cluster audience pin makes the blast radius of any one captured token exactly one cluster. The framework's `examples/E2EHarness` exercises this and related attack tokens (sentinel-stripped, count-mismatched, contract-version-missing) as in-process regression tests.
+**For an automated, in-process regression test of this exact attack pattern**, see [`examples/E2EHarness/`](../E2EHarness/README.md) — it exercises cross-audience and four other token-replay attack shapes against the same Trellis primitives the sample uses, without needing external proxy tooling.
 
 ### Missing-tenant_id attack — should fail closed
 

@@ -55,8 +55,8 @@ flowchart LR
     yarp -- "Authorization: Bearer <JWT aud=orders>" --> ojb
     yarp -- "Authorization: Bearer <JWT aud=billing>" --> bjb
 
-    ojb -. "fetch JWKS once,<br/>cache forever" .-> disc
-    bjb -. "fetch JWKS once,<br/>cache forever" .-> disc
+    ojb -. "fetch JWKS on first validation,<br/>cache, refresh on unknown kid" .-> disc
+    bjb -. "fetch JWKS on first validation,<br/>cache, refresh on unknown kid" .-> disc
 
     Gateway -. OTLP .-> dashboard
     Orders -. OTLP .-> dashboard
@@ -160,7 +160,7 @@ sequenceDiagram
     D-->>G: Actor{alice, [orders:read], {tenant_id:acme-corp}}
     G->>T: pre-forward transform
     T->>T: pick cluster → "orders"<br/>→ audience = "orders"
-    T->>T: mint JWT<br/>iss=http://localhost:5001<br/>aud=orders<br/>kid=sample-key-1<br/>+ Actor claims<br/>+ sentinel + count claims<br/>signed RS256
+    T->>T: mint JWT<br/>iss=http://localhost:5001<br/>aud=orders<br/>kid=sample-key-<16-hex-pubkey-hash><br/>+ Actor claims<br/>+ sentinel + count claims<br/>signed RS256
     T-->>Y: Authorization: Bearer <JWT><br/>(replaces any inbound Authorization)
     Y->>J: GET /api/orders<br/>via https+http://orders (service-discovered)
     rect rgba(240, 240, 240, 0.5)
@@ -184,7 +184,7 @@ sequenceDiagram
 | Step | Invariant | Enforced by |
 |---|---|---|
 | 6 | Per-cluster audience pinning | `AudiencePerCluster = c => c.ClusterId` in Gateway/Program.cs |
-| 7 | Token-replay floor (jti + tight expiry + RS256) | `Trellis.Yarp.TrellisActorJwtMinter` |
+| 7 | jti unique per mint (audit correlation), tight `Lifetime`, RS256 pinned | `Trellis.Yarp.TrellisActorJwtMinter`. NOTE: sample does NOT configure a `TokenReplayCache` — replay window is bounded by the 5-minute `Lifetime` plus `ClockSkew`, not by a server-side replay store. |
 | 7 | Reserved-claim guard (no overlap with Trellis structural claims) | `Trellis.Yarp.TrellisActorJwtMinter` |
 | 11–14 | Lazy JWKS fetch & cache | `Microsoft.AspNetCore.Authentication.JwtBearer` (built-in) |
 | 15 | Algorithm pin + kid match | `TokenValidationParameters.ValidAlgorithms = [RsaSha256]`, `TryAllIssuerSigningKeys = false` |
@@ -263,7 +263,7 @@ A concrete example of the JWT for a `GET /api/orders` from `alice` with `tenant_
 // Header (base64url-decoded)
 {
   "alg": "RS256",
-  "kid": "sample-key-1",
+  "kid": "sample-key-0123456789ABCDEF",       // example; sample-key-<first-8-bytes-of-pubkey-SHA256>; changes when the gateway regenerates its key
   "typ": "JWT"
 }
 
@@ -276,7 +276,7 @@ A concrete example of the JWT for a `GET /api/orders` from `alice` with `tenant_
   "iat": 1780_xxx,
   "nbf": 1780_xxx,
   "sub": "alice",                          // Actor.Id
-  "jti": "ed0a0eb7eab347b1a4e315e9bb45de0a",  // unique per mint — replay-deterrence
+  "jti": "ed0a0eb7eab347b1a4e315e9bb45de0a",  // unique per mint — audit correlation only; sample has no TokenReplayCache so replay is bounded by Lifetime+ClockSkew, not enforced per-jti
 
   // Trellis contract claims — the framework's integrity sentinels
   "trellis_actor_contract_version": "1",
@@ -319,13 +319,13 @@ sequenceDiagram
 
 **Why this matters:** without per-cluster audiences, every downstream would share one audience (say `"internal"`) and a token captured from one service trivially grants access to all the others. With `AudiencePerCluster = c => c.ClusterId`, each downstream pins a unique audience and the blast radius of any captured token is one cluster.
 
-**How to reproduce this locally.** The attack relies on the attacker bypassing the gateway and going directly to Billing's port. The gateway always mints `aud=billing` for `/api/billing/*` (via the per-cluster pin), so you can't reproduce the attack by just calling `/api/billing` through the gateway with reconfigured options — both `o.Audience` and `TokenValidationParameters.ValidAudience` on Billing would need to be relaxed AND the gateway's `AudiencePerCluster` would need to be tampered with. The realistic path is:
+**How to reproduce this locally.** The attack relies on the attacker bypassing the gateway and going directly to Billing's port. The gateway always mints `aud=billing` for `/api/billing/*` (via the per-cluster pin), so you can't reproduce the attack by just calling `/api/billing` through the gateway with reconfigured options — both `o.Audience` and `TokenValidationParameters.ValidAudience` on Billing would need to be relaxed AND the gateway's `AudiencePerCluster` would need to be tampered with. The realistic path:
 
-1. Grab an `aud=orders` JWT from any gateway mint event in the Aspire dashboard's Console tab.
-2. Find Billing's Aspire-assigned direct port from the Resources tab.
-3. `curl -H "Authorization: Bearer <orders-token>" http://localhost:NNNN/api/billing` → 401 (Billing's `ValidAudience = "billing"` rejects `aud=orders`).
+1. **Capture an `aud=orders` JWT.** The sample's gateway intentionally never logs raw JWTs (see `Trellis.Yarp.TrellisActorForwardingTransformProvider` — only `kid`/`jti`/`iss`/`aud`/`exp` are logged, never the compact JWS). To capture the token at the network layer you need an external HTTPS-decrypting proxy (Fiddler, Charles, mitmproxy) positioned between Gateway and Orders.
+2. **Find Billing's direct port** in the Aspire dashboard Resources tab.
+3. `curl -H "Authorization: Bearer <captured-orders-token>" http://localhost:NNNN/api/billing` → 401 (Billing's `ValidAudience = "billing"` rejects `aud=orders`).
 
-See `examples/E2EHarness` for the in-process automated regression test that exercises this attack against a token-replay shape.
+The manual capture step is intentionally inconvenient — production gateways shouldn't make JWTs easy to harvest. For an automated, in-process regression test of this attack pattern (and four other replay shapes — sentinel-stripped, count-mismatched, comma-joined, contract-version-missing), see [`examples/E2EHarness`](../E2EHarness/README.md).
 
 ## 8. Missing `tenant_id` attack — `RequiredAttributes` in action
 
@@ -343,8 +343,9 @@ sequenceDiagram
     G->>O: forward
     O->>O: JwtBearer: signature/iss/aud/exp all OK
     O->>O: sentinel + count check OK
-    O->>O: RequiredAttributes = [tenant_id]<br/>→ JWT has no tenant_id claim<br/>→ FAIL CLOSED
-    O-->>A: 401 invalid_token<br/>(endpoint never runs)
+    O->>O: RequiredAttributes = [tenant_id]<br/>JWT has no tenant_id<br/>IActorProvider returns Maybe.None
+    O-->>A: 401 Unauthorized
+    Note over A,O: actor-provider failure. JwtBearer accepted the token,<br/>but the actor-provider returned Maybe.None<br/>and the business handler never ran.
 ```
 
 **Why this matters:** a downstream service that reads `actor.Attributes["tenant_id"]` with a default/wildcard fallback would silently cross tenants if a mint accidentally omitted the claim. Putting `tenant_id` in `RequiredAttributes` makes "tenant unknown" mean 401, not "queries all tenants".
@@ -375,7 +376,7 @@ flowchart LR
 **What you actually see in the dashboard:**
 
 - **Resources tab** — `gateway`, `orders`, `billing` each "Running" with their endpoints. The AppHost-injected service-discovery env vars are visible in the Environment subtab.
-- **Console tab** — raw stdout per service, including the Gateway's `kid=sample-key-1, iss=..., aud=orders, permissions_count=N, forbidden_permissions_count=N` mint log.
+- **Console tab** — raw stdout per service, including the Gateway's `kid=sample-key-<16-hex>, iss=..., aud=orders, permissions_count=N, forbidden_permissions_count=N` mint log (raw JWT is intentionally never logged).
 - **Structured logs tab** — same data indexed, filterable by resource / level / property.
 - **Traces tab** — every curl creates one trace. A single `/api/orders` trace contains: `gateway POST /api/orders` (root) → `gateway HTTP forward` → `orders incoming GET /api/orders` → `orders auth + endpoint span`. The `traceparent` header propagates automatically because `HttpClientInstrumentation` adds it and `AspNetCoreInstrumentation` reads it.
 - **Metrics tab** — per-service request counts, latency histograms, GC / CPU / runtime metrics.

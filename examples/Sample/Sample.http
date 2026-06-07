@@ -50,11 +50,14 @@ GET {{host}}/api/orders
 X-Test-Actor: {"Id":"carol","Permissions":["orders:read"],"ForbiddenPermissions":[],"Attributes":{"tenant_id":"contoso"}}
 
 ### 4. Missing tenant_id — fail-closed via RequiredAttributes
-# Expected: 401 Unauthorized. The downstream Orders service's
-# TrellisInternalJwtActorProvider has RequiredAttributes = ["tenant_id"] so a
-# request without a tenant claim is rejected before the endpoint runs. This is
-# the framework's defense against a downstream service ever evaluating a request
-# without knowing which tenant it belongs to.
+# Expected: 401 Unauthorized. JwtBearer accepts the token (signature / iss /
+# aud / lifetime all OK). The downstream Orders service's
+# TrellisInternalJwtActorProvider has RequiredAttributes = ["tenant_id"] so
+# the actor provider returns Maybe.None when the tenant claim is absent,
+# which short-circuits the business handler. This is an actor-provider
+# contract failure (NOT a JwtBearer invalid_token failure); the framework's
+# defense against a downstream ever evaluating a request without knowing
+# which tenant it belongs to.
 GET {{host}}/api/orders
 X-Test-Actor: {"Id":"bob","Permissions":["orders:read"],"ForbiddenPermissions":[],"Attributes":{}}
 

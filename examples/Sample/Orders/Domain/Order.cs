@@ -32,6 +32,13 @@ public sealed class Order
 
     public void Update(string customer, decimal total)
     {
+        // Intentionally trivial — this sample's focus is auth (Recipe 1 + Recipe 31),
+        // not domain validation. A production aggregate would Result-check inputs
+        // (null/whitespace customer, negative total, max length, etc.) via
+        // Trellis.Core's Result.Ensure + Trellis.FluentValidation. The Update
+        // signature would then be `Result<Unit> Update(...)` and the handler would
+        // Bind on it. We omit that here so the auth pipeline is the only thing
+        // moving in the diagram.
         Customer = customer;
         Total = total;
     }
