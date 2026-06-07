@@ -19,10 +19,16 @@ builder.AddServiceDefaults();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>
     {
+        // Gate dev-only options on IsDevelopment so a copy/paste into a
+        // production composition root keeps RequireHttpsMetadata=true (the
+        // ASP.NET Core default) and IncludeErrorDetails=false (don't leak
+        // JWT validation failure reasons to the wire).
+        var isDev = builder.Environment.IsDevelopment();
+
         o.Authority = "http://localhost:5001";
         o.Audience = "billing";
-        o.RequireHttpsMetadata = false;          // local dev only
-        o.IncludeErrorDetails = true;            // local dev: surface real failure reason in WWW-Authenticate
+        o.RequireHttpsMetadata = !isDev;         // dev only: allow http JWKS discovery
+        o.IncludeErrorDetails = isDev;           // dev only: surface real failure reason in WWW-Authenticate
         o.MapInboundClaims = false;
         o.SaveToken = false;
         o.TokenValidationParameters = new TokenValidationParameters

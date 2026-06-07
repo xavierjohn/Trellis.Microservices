@@ -173,7 +173,7 @@ Content-Type: application/json
 # ===================================================================
 # Send #10–#13 six times via the "Send Request" button. After 6 sends of #10
 # the Aspire dashboard's Metrics tab should show
-# `orders.resource_loads{order_id="order-1"}` increased by exactly 6 (not 12).
+# `orders.resource_loads{order.id="order-1"}` increased by exactly 6 (not 12).
 # That difference is the v4 typed-accessor — handlers read the SAME order
 # instance the ResourceAuthorizationBehavior loaded, without re-querying the
 # repository. See ARCHITECTURE.md §11.5.

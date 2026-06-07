@@ -32,7 +32,7 @@ A working, Aspire-orchestrated sample of the Trellis internal-JWT contract with 
 
 ## Run it
 
-**Prereq:** .NET 10 SDK (10.0.300+). No Aspire workload installation needed — Aspire 13+ is pure NuGet.
+**Prereq:** .NET 10 SDK matching the pin in [`global.json`](../../global.json) (currently `10.0.203` with `rollForward=latestFeature` — any 10.0.2xx SDK in the 200 feature band works). No Aspire workload installation needed — Aspire 13+ is pure NuGet.
 
 ```powershell
 cd examples/Sample

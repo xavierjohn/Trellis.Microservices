@@ -14,6 +14,8 @@ A diagram-first deep dive into what actually happens when you run `dotnet run --
 - [8. Missing `tenant_id` attack — `RequiredAttributes` in action](#8-missing-tenant_id-attack--requiredattributes-in-action)
 - [9. Aspire telemetry pipeline](#9-aspire-telemetry-pipeline)
 - [10. Why per-cluster audiences and why dynamic JWKS](#10-why-per-cluster-audiences-and-why-dynamic-jwks)
+- [11. Resource-based authorization — John & Jill ownership demo](#11-resource-based-authorization--john--jill-ownership-demo)
+- [Where to go from here](#where-to-go-from-here)
 
 ## 1. System view
 
@@ -308,7 +310,7 @@ sequenceDiagram
     participant B as Billing
     Note over A,G: 1. Capture step — a legitimate orders request
     A->>G: GET /api/orders<br/>X-Test-Actor: {tenant_id, ...}
-    G-->>A: 200 + Actor JSON<br/>(JWT visible in OTEL trace<br/>or any network sniff)
+    G-->>A: 200 + Actor JSON<br/>(JWT captured from any<br/>network sniff or proxy log)
     Note over A,B: 2. Replay step — re-use the captured token at billing
     A->>B: GET /api/billing<br/>Authorization: Bearer <JWT aud=orders>
     B->>B: JwtBearer validation:<br/>ValidAudience = "billing"<br/>token.aud = "orders"
