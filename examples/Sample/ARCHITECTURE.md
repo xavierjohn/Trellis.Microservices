@@ -176,7 +176,7 @@ sequenceDiagram
     A->>A: ExpectedIssuer / ExpectedAudience cross-check
     A->>A: RequiredAttributes = [tenant_id]<br/>→ tenant_id is present, mapped, non-empty
     A-->>E: IActorProvider.GetCurrentActorAsync() → Maybe.Some(actor)
-    E-->>C: 200 OK<br/>{ "service":"orders", "actor":{...} }
+    E-->>C: 200 OK<br/>[ { "id":"order-1", "ownerId":"john", ... },<br/>  { "id":"order-2", "ownerId":"jill", ... } ]
 ```
 
 **Where each invariant is enforced** (numbered to match the diagram):

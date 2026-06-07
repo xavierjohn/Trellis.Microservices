@@ -5,9 +5,9 @@ using Trellis.Microservices.Sample.Orders.Domain;
 namespace Trellis.Microservices.Sample.Orders.Infrastructure;
 
 // Shared loader used by every command/query that implements
-// IIdentifyResource<Order, OrderId>. Bridges from Result<Order> (what the
-// authorization pipeline expects) to Maybe<Order> (what the repository
-// returns) — translating "not found" into Error.NotFound on the way through.
+// IIdentifyResource<Order, OrderId>. Bridges from Maybe<Order> (what the
+// repository returns) to Result<Order> (what the authorization pipeline
+// expects) — translating "not found" into Error.NotFound on the way through.
 public sealed class OrderResourceLoader : SharedResourceLoaderById<Order, OrderId>
 {
     private readonly IOrderRepository _repository;

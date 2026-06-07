@@ -28,7 +28,7 @@ A working, Aspire-orchestrated sample of the Trellis internal-JWT contract with 
 - **YARP routing** (path-based, two clusters) — same `Gateway:5001` host, different downstream depending on path prefix.
 - **Aspire telemetry** — every request flows through OTEL spans so the dashboard shows `Gateway -> Orders` and `Gateway -> Billing` traces with timings, logs, and metrics.
 - **Resource-based authorization (Orders only)** — two pre-seeded actors `john` and `jill` share the same `orders:read` + `orders:write` permissions, but **each owns one order** (john→order-1, jill→order-2). Policy: view-any (any actor with `orders:read` can GET any order) + edit-mine (only the owner can PUT). Wired via `Trellis.Mediator` + `IAuthorizeResource<Order>` + `SharedResourceLoaderById<Order, OrderId>`. The 8-cell outcome matrix (john/jill × view/edit × order-1/order-2 → 200/200/200/200/204/403/204/403) is encoded in `Sample.http` rows 10-17.
-- **Load-once invariant** — Orders handlers inject `IAuthorizedResource<TCommand, Order>` (the v4 typed accessor) instead of `IOrderRepository`, so the resource is loaded EXACTLY ONCE per request (during pipeline auth) and the handler reads the same instance. Proved by the `orders.resource_loads` counter — N curls → N counter ticks. See `ARCHITECTURE.md` §11.5 for the falsifiable demo.
+- **Load-once invariant** — the single-resource Orders handlers (`GetOrderHandler` / `UpdateOrderHandler`) inject `IAuthorizedResource<TCommand, Order>` (the v4 typed accessor) instead of `IOrderRepository`, so each GET/PUT on a specific order loads the resource EXACTLY ONCE per request (during pipeline auth) and the handler reads the same instance. `ListOrdersHandler` intentionally uses `IOrderRepository.ListAllAsync` because list isn't a single-resource authorization path (no `IIdentifyResource<,>`). Proved by the `orders.resource_loads` counter — N curls of `GET /api/orders/{id}` → N counter ticks. See `ARCHITECTURE.md` §11.5 for the falsifiable demo.
 
 ## Run it
 
@@ -57,19 +57,29 @@ The exact same Actor envelope works against either service — the Gateway re-mi
 ```powershell
 $actor = '{"Id":"alice","Permissions":["orders:read","billing:read"],"ForbiddenPermissions":[],"Attributes":{"tenant_id":"acme-corp"}}'
 
-# Orders
+# Orders — returns the seeded order list (john's + jill's). Anyone with orders:read sees both.
 Invoke-RestMethod http://localhost:5001/api/orders  -Headers @{ "X-Test-Actor" = $actor } | ConvertTo-Json -Depth 10
 
-# Billing
+# Billing — returns the round-tripped Actor as the demo response (Billing has no domain
+# yet; it stays trust-boundary-only as a counter-example to Orders).
 Invoke-RestMethod http://localhost:5001/api/billing -Headers @{ "X-Test-Actor" = $actor } | ConvertTo-Json -Depth 10
 ```
 
-Each returns the round-tripped Actor plus a `"service"` field identifying which service handled the request:
+`/api/orders` returns an array of `OrderResponse` DTOs (the seeded orders):
+
+```json
+[
+  { "id": "order-1", "ownerId": "john", "customer": "Contoso",    "total": 99 },
+  { "id": "order-2", "ownerId": "jill", "customer": "Globex Inc", "total": 149 }
+]
+```
+
+`/api/billing` returns the hydrated Actor with a `"service": "billing"` field, identifying which service handled the request:
 
 ```json
 {
-  "service": "orders",
-  "message": "hello from the orders service",
+  "service": "billing",
+  "message": "hello from the billing service",
   "actor": {
     "id": "alice",
     "permissions": ["billing:read", "orders:read"],

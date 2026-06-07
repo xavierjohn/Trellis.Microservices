@@ -17,16 +17,17 @@
 
 @host = http://localhost:5001
 
-### 1. Orders — happy path
+### 1. Orders — happy path (list)
 # Sends an X-Test-Actor JSON envelope to the Gateway. The Gateway's
 # DevelopmentActorProvider parses it, AddTrellisActorForwarding mints a fresh JWT
 # (audience="orders" because YARP matched the "orders-route" cluster) and YARP
 # forwards to the Orders service. Orders validates via OIDC discovery (fetches
 # JWKS from Gateway), hydrates the Actor via TrellisInternalJwtActorProvider,
-# and echoes it back. Open the Aspire dashboard's Traces tab to see the
+# and runs ListOrdersQuery (static-permission only — any actor with orders:read
+# can list every order). Open the Aspire dashboard's Traces tab to see the
 # Gateway -> Orders span.
 #
-# Expected: 200 OK + "service":"orders" + round-tripped Actor.
+# Expected: 200 OK + an array of seeded OrderResponse DTOs (order-1 + order-2).
 GET {{host}}/api/orders
 X-Test-Actor: {"Id":"alice","Permissions":["orders:read","orders:write"],"ForbiddenPermissions":["orders:delete"],"Attributes":{"tenant_id":"acme-corp"}}
 
@@ -100,9 +101,12 @@ GET {{host}}/.well-known/jwks.json
 #
 # Each load through InMemoryOrderRepository.FindByIdAsync increments the
 # `orders.resource_loads` counter (visible in Aspire dashboard Metrics tab).
-# Handlers inject IAuthorizedResource<,> instead of IOrderRepository, so the
-# counter ticks exactly ONCE per request — proving the v4 typed-accessor
-# pattern eliminates the duplicate load.
+# The single-resource handlers (GetOrderHandler / UpdateOrderHandler) inject
+# IAuthorizedResource<,> instead of IOrderRepository, so the counter ticks
+# exactly ONCE per GET/PUT-by-id request — proving the v4 typed-accessor
+# pattern eliminates the duplicate load. (ListOrdersHandler intentionally
+# uses IOrderRepository.ListAllAsync because list isn't a single-resource
+# auth path — no IIdentifyResource<,>.)
 
 @john = {"Id":"john","Permissions":["orders:read","orders:write"],"ForbiddenPermissions":[],"Attributes":{"tenant_id":"acme-corp"}}
 @jill = {"Id":"jill","Permissions":["orders:read","orders:write"],"ForbiddenPermissions":[],"Attributes":{"tenant_id":"acme-corp"}}
