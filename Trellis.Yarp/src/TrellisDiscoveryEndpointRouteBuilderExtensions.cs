@@ -2,15 +2,14 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using global::Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using global::Microsoft.IdentityModel.Tokens;
 
 /// <summary>
 /// <see cref="IEndpointRouteBuilder"/> extensions that publish the gateway's OIDC

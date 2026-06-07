@@ -4,8 +4,12 @@
     <OutputType>Exe</OutputType>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     
-    <NoWarn>$(NoWarn),CA1707</NoWarn>
-    
+    <NoWarn>$(NoWarn),CA1707,CS1591</NoWarn>
+
+    <!-- Test projects need a doc file so IDE0005 (unused usings) can run; CS1591
+         is suppressed above so missing-XML-comment warnings don't fail the build. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
     <EnableAotAnalyzer>false</EnableAotAnalyzer>
     <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
   </PropertyGroup>

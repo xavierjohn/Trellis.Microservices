@@ -5,11 +5,11 @@ using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Trellis.Asp.Authorization;
-using Trellis.Microservices.AspNetCore;
 using Trellis.Authorization;
+using Trellis.Microservices.AspNetCore;
 
 /// <summary>
-/// Tests for <see cref="ServiceCollectionExtensions.AddTrellisInternalJwtActorProvider"/>.
+/// Tests for <see cref="Trellis.Microservices.AspNetCore.ServiceCollectionExtensions.AddTrellisInternalJwtActorProvider"/>.
 /// </summary>
 public sealed class AddTrellisInternalJwtActorProviderTests
 {

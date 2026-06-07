@@ -1,6 +1,4 @@
-﻿using Trellis;
-
-namespace Trellis.Microservices.Sample.Orders.Domain;
+﻿namespace Trellis.Microservices.Sample.Orders.Domain;
 
 // Typed identifier for the Order aggregate. Using RequiredString<TSelf> from
 // Trellis.Primitives gives us value-object semantics, validation, JSON conversion,

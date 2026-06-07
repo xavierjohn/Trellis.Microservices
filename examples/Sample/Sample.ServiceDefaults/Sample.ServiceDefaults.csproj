@@ -7,8 +7,11 @@
     <IsAotCompatible>false</IsAotCompatible>
     <EnableAotAnalyzer>false</EnableAotAnalyzer>
     <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
-    <!-- Sample project, not packed: skip XML-doc generation so CS1591 doesn't fire. -->
-    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- Sample project, not packed: enable XML-doc generation so IDE0005 (unused usings)
+         analyzer has the semantic info it needs; suppress CS1591 (missing XML comments
+         on public types) since demo code doesn't need API docs. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
   <!--

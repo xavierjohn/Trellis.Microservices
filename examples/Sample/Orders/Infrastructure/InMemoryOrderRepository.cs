@@ -1,6 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using Microsoft.Extensions.Logging;
-using Trellis;
 using Trellis.Microservices.Sample.Orders.Domain;
 
 namespace Trellis.Microservices.Sample.Orders.Infrastructure;

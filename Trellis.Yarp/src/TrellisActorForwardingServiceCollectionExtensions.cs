@@ -5,7 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using global::Yarp.ReverseProxy.Transforms.Builder;
 
 /// <summary>
 /// <see cref="IReverseProxyBuilder"/> extensions that wire the Trellis actor-forwarding

@@ -1,5 +1,4 @@
 ﻿using System.Reflection;
-using Trellis.Microservices.Abstractions;
 
 namespace Trellis.Microservices.Abstractions.Tests;
 

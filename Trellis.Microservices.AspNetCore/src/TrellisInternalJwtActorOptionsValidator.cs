@@ -1,7 +1,7 @@
 ﻿namespace Trellis.Microservices.AspNetCore;
 
-using System.Collections.Generic;
 using System.Collections.Frozen;
+using System.Collections.Generic;
 using Microsoft.Extensions.Options;
 
 /// <summary>

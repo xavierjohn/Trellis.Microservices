@@ -1,16 +1,15 @@
 ﻿namespace Trellis.Yarp.Tests;
 
 using System;
-using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Time.Testing;
 using global::Microsoft.IdentityModel.JsonWebTokens;
 using global::Microsoft.IdentityModel.Tokens;
 using global::Yarp.ReverseProxy.Configuration;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 
 /// <summary>
 /// Tests for <see cref="TrellisActorJwtMinter"/>. Asserts the v1 internal-JWT contract

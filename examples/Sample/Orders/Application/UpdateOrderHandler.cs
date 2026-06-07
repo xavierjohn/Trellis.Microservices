@@ -1,5 +1,4 @@
 ﻿using Mediator;
-using Trellis;
 using Trellis.Authorization;
 using Trellis.Microservices.Sample.Orders.Domain;
 

@@ -1,5 +1,4 @@
-﻿using Trellis;
-using Trellis.Authorization;
+﻿using Trellis.Authorization;
 using Trellis.Microservices.Sample.Orders.Domain;
 
 namespace Trellis.Microservices.Sample.Orders.Infrastructure;

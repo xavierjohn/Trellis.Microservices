@@ -8,16 +8,15 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using global::Microsoft.IdentityModel.JsonWebTokens;
 using global::Microsoft.IdentityModel.Tokens;
 using global::Yarp.ReverseProxy.Configuration;
 using global::Yarp.ReverseProxy.Forwarder;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 /// <summary>
 /// End-to-end smoke tests exercising the actual YARP runtime pipeline. Spins up two

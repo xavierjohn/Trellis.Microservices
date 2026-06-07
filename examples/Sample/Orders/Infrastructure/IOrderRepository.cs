@@ -1,5 +1,4 @@
-﻿using Trellis;
-using Trellis.Microservices.Sample.Orders.Domain;
+﻿using Trellis.Microservices.Sample.Orders.Domain;
 
 namespace Trellis.Microservices.Sample.Orders.Infrastructure;
 

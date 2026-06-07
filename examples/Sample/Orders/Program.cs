@@ -1,10 +1,8 @@
 ﻿using Mediator;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Trellis;
 using Trellis.Asp;
-using Trellis.Authorization;
 using Trellis.Mediator;
 using Trellis.Microservices.AspNetCore;
 using Trellis.Microservices.Sample.Orders.Application;
