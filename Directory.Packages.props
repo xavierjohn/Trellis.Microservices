@@ -36,6 +36,9 @@
   <!-- Sample (Aspire-orchestrated examples/Sample/). Not consumed by packed libraries. -->
   <ItemGroup>
     <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.4.5" />
+    <!-- OpenTelemetry core (Exporter/Extensions.Hosting) tracks the 1.16.x line. The contrib
+         Instrumentation.* packages version independently and lag core, so they intentionally
+         stay on 1.15.x — do not "lockstep" them to 1.16.0 (no matching release). -->
     <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.16.0" />
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.16.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
