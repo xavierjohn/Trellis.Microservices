@@ -30,7 +30,7 @@
 
   <!-- Sample (Aspire-orchestrated examples/Sample/). Not consumed by packed libraries. -->
   <ItemGroup>
-    <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.4.2" />
+    <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.4.5" />
     <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
@@ -55,12 +55,12 @@
     Bump in lock-step with upstream releases that change consumed APIs.
   -->
   <ItemGroup>
-    <PackageVersion Include="Trellis.Asp" Version="3.0.0-alpha.360" />
-    <PackageVersion Include="Trellis.Authorization" Version="3.0.0-alpha.360" />
-    <PackageVersion Include="Trellis.Core" Version="3.0.0-alpha.360" />
-    <PackageVersion Include="Trellis.Mediator" Version="3.0.0-alpha.360" />
-    <PackageVersion Include="Trellis.Primitives" Version="3.0.0-alpha.360" />
-    <PackageVersion Include="Trellis.ServiceDefaults" Version="3.0.0-alpha.360" />
+    <PackageVersion Include="Trellis.Asp" Version="3.0.0-alpha.397" />
+    <PackageVersion Include="Trellis.Authorization" Version="3.0.0-alpha.397" />
+    <PackageVersion Include="Trellis.Core" Version="3.0.0-alpha.397" />
+    <PackageVersion Include="Trellis.Mediator" Version="3.0.0-alpha.397" />
+    <PackageVersion Include="Trellis.Primitives" Version="3.0.0-alpha.397" />
+    <PackageVersion Include="Trellis.ServiceDefaults" Version="3.0.0-alpha.397" />
     <PackageVersion Include="Trellis.Testing" Version="3.0.0-alpha.360" />
   </ItemGroup>
 
