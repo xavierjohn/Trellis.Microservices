@@ -1,4 +1,4 @@
-﻿name: Publish Trellis.Microservices Alpha
+name: Publish Trellis.Microservices Alpha
 
 # Publishes alpha NuGet packages to GitHub Packages on manual dispatch.
 # For stable nuget.org releases, use the publish.yml workflow instead.
@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0  # needed for nbgv
 

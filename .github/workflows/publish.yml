@@ -1,4 +1,4 @@
-﻿name: Publish NuGet Package
+name: Publish NuGet Package
 
 # Publishes stable NuGet packages to nuget.org on manual dispatch with an
 # explicit dry-run option. Requires the NUGET_API_KEY repository secret.
@@ -22,7 +22,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         fetch-depth: 0  # needed for nbgv
 
@@ -106,7 +106,7 @@ jobs:
         ls -lh nupkgs/*.nupkg
 
     - name: Upload SBOMs
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: sbom-spdx
         path: sbom/_manifest/**

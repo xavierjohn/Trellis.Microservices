@@ -1,4 +1,4 @@
-﻿name: "CodeQL"
+name: "CodeQL"
 
 on:
   workflow_dispatch:
@@ -32,7 +32,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         fetch-depth: 0  # needed for nbgv
 
