@@ -337,6 +337,47 @@ public sealed class AddTrellisInternalJwtBearerTests
         actor.ExpectedAudience.Should().Be(Audience);
     }
 
+    [Fact]
+    public void AddTrellisInternalJwtBearer_LaterPostConfigure_RepointsActorScheme_FailsClosed()
+    {
+        var services = new ServiceCollection();
+
+        services.AddTrellisInternalJwtBearer(Issuer, Audience);
+        // The forcing above runs before this later PostConfigure, which would point the actor provider at a
+        // different scheme than the bearer handler validates — the startup validator must reject it.
+        services.PostConfigure<TrellisInternalJwtActorOptions>(o => o.AuthenticationScheme = "WeakerScheme");
+
+        var act = () => ResolveActorOptions(services);
+
+        act.Should().Throw<OptionsValidationException>().WithMessage("*AuthenticationScheme must remain*");
+    }
+
+    [Fact]
+    public void AddTrellisInternalJwtBearer_LaterPostConfigure_RepointsActorIssuer_FailsClosed()
+    {
+        var services = new ServiceCollection();
+
+        services.AddTrellisInternalJwtBearer(Issuer, Audience);
+        services.PostConfigure<TrellisInternalJwtActorOptions>(o => o.ExpectedIssuer = "https://evil.example");
+
+        var act = () => ResolveActorOptions(services);
+
+        act.Should().Throw<OptionsValidationException>().WithMessage("*ExpectedIssuer must remain*");
+    }
+
+    [Fact]
+    public void AddTrellisInternalJwtBearer_LaterPostConfigure_RepointsActorAudience_FailsClosed()
+    {
+        var services = new ServiceCollection();
+
+        services.AddTrellisInternalJwtBearer(Issuer, Audience);
+        services.PostConfigure<TrellisInternalJwtActorOptions>(o => o.ExpectedAudience = "evil-audience");
+
+        var act = () => ResolveActorOptions(services);
+
+        act.Should().Throw<OptionsValidationException>().WithMessage("*ExpectedAudience must remain*");
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

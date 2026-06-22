@@ -111,8 +111,9 @@ public static class ServiceCollectionExtensions
     /// <see cref="TrellisInternalJwtActorOptions.RequiredAttributes"/> and
     /// <see cref="TrellisInternalJwtActorOptions.AttributeClaimMap"/>). The scheme,
     /// <see cref="TrellisInternalJwtActorOptions.ExpectedIssuer"/>, and
-    /// <see cref="TrellisInternalJwtActorOptions.ExpectedAudience"/> are pre-set from this method's arguments
-    /// before the delegate runs.
+    /// <see cref="TrellisInternalJwtActorOptions.ExpectedAudience"/> are forced from this method's arguments
+    /// <b>after</b> this delegate runs (and re-asserted at startup), so any values you set for those three here
+    /// are overwritten — they always track the bearer scheme / issuer / audience.
     /// </param>
     /// <param name="configureJwtBearer">
     /// Optional delegate to adjust the deployment-specific, non-security-critical parts of
@@ -222,14 +223,19 @@ public static class ServiceCollectionExtensions
         services.AddTrellisInternalJwtActorProvider(configureActor);
 
         // Force the scheme + defense-in-depth issuer/audience AFTER the consumer's configureActor, so the
-        // actor provider always authenticates the same scheme the bearer handler validates and the runtime
-        // cross-checks cannot be removed.
+        // actor provider always authenticates the same scheme the bearer handler validates.
         services.PostConfigure<TrellisInternalJwtActorOptions>(actorOptions =>
         {
             actorOptions.AuthenticationScheme = authenticationScheme;
             actorOptions.ExpectedIssuer = issuer;
             actorOptions.ExpectedAudience = audience;
         });
+
+        // Belt-and-suspenders, symmetric with the JwtBearer side: fail closed at startup if a LATER
+        // PostConfigure<TrellisInternalJwtActorOptions> drifts the scheme/issuer/audience away from the pinned
+        // values (which the forcing above cannot reach), repointing the actor provider at a weaker scheme.
+        services.AddSingleton<IValidateOptions<TrellisInternalJwtActorOptions>>(
+            new TrellisInternalJwtBearerActorOptionsValidator(authenticationScheme, issuer, audience));
 
         return services;
     }
