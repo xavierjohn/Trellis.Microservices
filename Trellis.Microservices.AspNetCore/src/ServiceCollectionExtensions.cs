@@ -223,8 +223,10 @@ public static class ServiceCollectionExtensions
         services.AddTrellisInternalJwtActorProvider(configureActor);
 
         // Force the scheme + defense-in-depth issuer/audience AFTER the consumer's configureActor, so the
-        // actor provider always authenticates the same scheme the bearer handler validates.
-        services.PostConfigure<TrellisInternalJwtActorOptions>(actorOptions =>
+        // actor provider always authenticates the same scheme the bearer handler validates. Pin only the
+        // DEFAULT options instance (the one the provider consumes) — an unnamed PostConfigure would apply to
+        // every named TrellisInternalJwtActorOptions the host may register for other purposes.
+        services.PostConfigure<TrellisInternalJwtActorOptions>(Options.DefaultName, actorOptions =>
         {
             actorOptions.AuthenticationScheme = authenticationScheme;
             actorOptions.ExpectedIssuer = issuer;

@@ -159,6 +159,22 @@ public sealed class AddTrellisInternalJwtBearerTests
     }
 
     [Fact]
+    public void AddTrellisInternalJwtBearer_DoesNotOverwriteNamedActorOptions()
+    {
+        var services = new ServiceCollection();
+
+        services.AddTrellisInternalJwtBearer(Issuer, Audience);
+        // A host may register named TrellisInternalJwtActorOptions for other purposes; the helper pins only
+        // the default instance the provider consumes, so a named instance keeps its own values.
+        services.Configure<TrellisInternalJwtActorOptions>("other", o => o.ExpectedIssuer = "https://other.example");
+
+        var named = services.BuildServiceProvider()
+            .GetRequiredService<IOptionsMonitor<TrellisInternalJwtActorOptions>>().Get("other");
+
+        named.ExpectedIssuer.Should().Be("https://other.example", "the helper pins only the default options instance, not named ones");
+    }
+
+    [Fact]
     public void AddTrellisInternalJwtBearer_ConfigureActor_AppliesRequiredAttributes()
     {
         var services = new ServiceCollection();
