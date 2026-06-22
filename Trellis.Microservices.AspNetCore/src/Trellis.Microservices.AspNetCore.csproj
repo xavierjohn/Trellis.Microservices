@@ -17,6 +17,8 @@
     <PackageReference Include="Trellis.Core" />
     <PackageReference Include="Trellis.Authorization" />
     <PackageReference Include="Trellis.Asp" />
+    <!-- Strict AddJwtBearer profile composed by AddTrellisInternalJwtBearer (non-AOT path; annotated). -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
   </ItemGroup>
   <ItemGroup>
     <!-- Shared contract constants — TrellisInternalJwtClaimNames. -->

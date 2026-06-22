@@ -104,6 +104,16 @@ Known non-APIs and corrected assumptions:
 
 **Fix.** Two strict validation profiles paired with `AddTrellisInternalJwtActorProvider` and a few defense-in-depth checks that the gateway claim alone cannot guarantee.
 
+**Recommended — one call.** `AddTrellisInternalJwtBearer(issuer, audience, configureActor?)` applies Profile A's strict settings *and* registers the actor provider in a single call, re-applying the security-critical invariants **after** any `configureJwtBearer` so a consumer cannot weaken them. The profiles below remain the source of truth for what it configures — and the hand-written path for an algorithm or posture the helper does not cover.
+
+```csharp
+builder.Services.AddTrellisInternalJwtBearer("https://gateway.internal", "incidents-service", c =>
+{
+    c.RequiredAttributes = ["tenant_id"];        // fail closed on missing tenant
+    c.AttributeClaimMap["tenant_id"] = "tid";
+});
+```
+
 ### Profile A — JWKS-discovery (default; gateway exposes a JWKS endpoint)
 
 Use when the gateway can serve a JWKS document over HTTPS that downstream services can fetch and cache. Suitable for in-cluster gateways such as `Trellis.Yarp` or any reverse proxy that signs tokens with a key whose public material is published at a well-known endpoint.
