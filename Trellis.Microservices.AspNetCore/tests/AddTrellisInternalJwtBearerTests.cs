@@ -195,6 +195,12 @@ public sealed class AddTrellisInternalJwtBearerTests
         services.AddTrellisInternalJwtBearer(Issuer, Audience, configureJwtBearer: o =>
         {
             o.ForwardAuthenticate = "SomeOtherScheme";                        // forward auth to a weaker handler
+            o.ForwardChallenge = "SomeOtherScheme";
+            o.ForwardForbid = "SomeOtherScheme";
+            o.ForwardSignIn = "SomeOtherScheme";
+            o.ForwardSignOut = "SomeOtherScheme";
+            o.ForwardDefault = "SomeOtherScheme";
+            o.ForwardDefaultSelector = _ => "SomeOtherScheme";
             var p = o.TokenValidationParameters;
             p.ValidIssuers = ["https://evil.example"];
             p.ValidAudiences = ["evil-audience"];
@@ -209,6 +215,12 @@ public sealed class AddTrellisInternalJwtBearerTests
         var jwt = ResolveJwtBearer(services);
         var v = jwt.TokenValidationParameters;
         jwt.ForwardAuthenticate.Should().BeNull("forwarding would bypass the bearer handler entirely");
+        jwt.ForwardDefault.Should().BeNull();
+        jwt.ForwardDefaultSelector.Should().BeNull();
+        jwt.ForwardChallenge.Should().BeNull();
+        jwt.ForwardForbid.Should().BeNull();
+        jwt.ForwardSignIn.Should().BeNull();
+        jwt.ForwardSignOut.Should().BeNull();
         v.ValidIssuers.Should().BeNull("no extra accepted issuers may slip past the forced ValidIssuer");
         v.ValidAudiences.Should().BeNull("no extra accepted audiences may slip past the forced ValidAudience");
         v.IssuerValidator.Should().NotBeNull("the issuer is pinned to an exact-match validator, replacing any consumer-supplied one");
@@ -232,6 +244,37 @@ public sealed class AddTrellisInternalJwtBearerTests
         var act = () => provider.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>().Get("Bearer");
 
         act.Should().Throw<OptionsValidationException>().WithMessage("*MapInboundClaims*");
+    }
+
+    [Fact]
+    public void AddTrellisInternalJwtBearer_LaterPostConfigure_FlipsHandlerMapInboundClaims_FailsClosed()
+    {
+        var services = new ServiceCollection();
+
+        services.AddTrellisInternalJwtBearer(Issuer, Audience);
+        // Mutating the pinned handler in place (same reference) re-enables inbound claim mapping without
+        // tripping the TokenHandlers reference-pin — the startup validator must still reject it.
+        services.PostConfigure<JwtBearerOptions>("Bearer", o => ((JsonWebTokenHandler)o.TokenHandlers[0]).MapInboundClaims = true);
+
+        var provider = services.BuildServiceProvider();
+        var act = () => provider.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>().Get("Bearer");
+
+        act.Should().Throw<OptionsValidationException>().WithMessage("*MapInboundClaims*");
+    }
+
+    [Fact]
+    public void AddTrellisInternalJwtBearer_LaterPostConfigure_SetsForwardChallenge_FailsClosed()
+    {
+        var services = new ServiceCollection();
+
+        services.AddTrellisInternalJwtBearer(Issuer, Audience);
+        // Any forwarding slot — not just ForwardAuthenticate — hands the scheme off to another handler.
+        services.PostConfigure<JwtBearerOptions>("Bearer", o => o.ForwardChallenge = "SomeOtherScheme");
+
+        var provider = services.BuildServiceProvider();
+        var act = () => provider.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>().Get("Bearer");
+
+        act.Should().Throw<OptionsValidationException>().WithMessage("*forwarding*");
     }
 
     [Fact]

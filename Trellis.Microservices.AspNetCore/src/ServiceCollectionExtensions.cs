@@ -1,12 +1,12 @@
 ﻿namespace Trellis.Microservices.AspNetCore;
 
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
-using System.Diagnostics.CodeAnalysis;
 using Trellis.Authorization;
 
 /// <summary>
@@ -247,10 +247,16 @@ public static class ServiceCollectionExtensions
     {
         options.MapInboundClaims = false;
 
-        // Scheme forwarding would hand authentication to another handler entirely, bypassing the parameters.
-        options.ForwardAuthenticate = null;
+        // Scheme forwarding would hand authentication (or challenge/forbid/sign-in/out) to another handler
+        // entirely, bypassing this scheme's validated parameters — clear every forwarding slot so the
+        // "no forwarding" guarantee is literal.
         options.ForwardDefault = null;
         options.ForwardDefaultSelector = null;
+        options.ForwardAuthenticate = null;
+        options.ForwardChallenge = null;
+        options.ForwardForbid = null;
+        options.ForwardSignIn = null;
+        options.ForwardSignOut = null;
 #pragma warning disable CS0618 // legacy validator path is obsolete; we force it off so it cannot be a bypass
         options.UseSecurityTokenValidators = false;   // force the modern TokenHandlers validation path
 #pragma warning restore CS0618

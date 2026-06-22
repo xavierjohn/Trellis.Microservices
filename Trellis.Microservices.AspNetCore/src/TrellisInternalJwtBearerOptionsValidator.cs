@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
 /// <summary>
@@ -50,10 +51,15 @@ internal sealed class TrellisInternalJwtBearerOptionsValidator : IValidateOption
 
         if (options.MapInboundClaims)
             failures.Add("MapInboundClaims must be false — the actor provider reads raw JWT claim names.");
-        if (options.ForwardAuthenticate is not null || options.ForwardDefault is not null || options.ForwardDefaultSelector is not null)
-            failures.Add("Authentication forwarding must not be configured on the internal-JWT scheme — it would bypass token validation.");
+        if (options.ForwardDefault is not null || options.ForwardDefaultSelector is not null
+            || options.ForwardAuthenticate is not null || options.ForwardChallenge is not null
+            || options.ForwardForbid is not null || options.ForwardSignIn is not null
+            || options.ForwardSignOut is not null)
+            failures.Add("Scheme forwarding must not be configured on the internal-JWT scheme — it would hand authentication (or challenge/forbid/sign-in/out) to another handler and bypass token validation.");
         if (options.TokenHandlers.Count != 1 || !ReferenceEquals(options.TokenHandlers[0], _pinnedTokenHandler))
             failures.Add("TokenHandlers must be exactly the pinned handler — a replaced, custom, or additional handler could ignore the TokenValidationParameters and accept any token.");
+        if (_pinnedTokenHandler is JsonWebTokenHandler { MapInboundClaims: true })
+            failures.Add("The pinned token handler's MapInboundClaims must remain false — re-enabling it (in place, without replacing the handler) remaps inbound claim names and breaks the actor provider's raw-claim reads.");
 #pragma warning disable CS0618 // legacy validator path is obsolete; assert it stays off
         if (options.UseSecurityTokenValidators)
             failures.Add("UseSecurityTokenValidators must be false — token validation must use the modern TokenHandlers path.");
