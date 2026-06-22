@@ -1,4 +1,4 @@
-﻿name: Build
+name: Build
 
 on:
   workflow_dispatch:
@@ -24,7 +24,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         fetch-depth: 0  # needed for nbgv
 
@@ -70,7 +70,7 @@ jobs:
           **/TestResults/**/*.trx
 
     - name: Upload Coverage to Codecov
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@v7
       if: always()
       with:
         # MTP writes coverage relative to each test project; search recursively
@@ -87,7 +87,7 @@ jobs:
       run: dotnet pack Trellis.Microservices.slnx --no-build --verbosity normal -c Release -o artifacts/
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       if: ${{ success() && !github.base_ref }}
       with:
         name: artifact
