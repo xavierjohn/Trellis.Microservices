@@ -4,6 +4,21 @@ Consumer-side counterpart to `Trellis.Yarp`. Hydrates the full Trellis `Actor` (
 
 ## Usage
 
+One call wires the strict `AddJwtBearer` profile and the actor provider together so they cannot drift:
+
+```csharp
+builder.Services.AddTrellisInternalJwtBearer(
+    issuer: "https://gateway.internal",
+    audience: "incidents-service",
+    configureActor: o =>
+    {
+        o.RequiredAttributes = ["tenant_id"];        // fail closed on a missing tenant claim
+        o.AttributeClaimMap["tenant_id"] = "tid";
+    });
+```
+
+It re-applies the security-critical invariants (`MapInboundClaims = false`, `TryAllIssuerSigningKeys = false`, `RequireSignedTokens`, validate `iss`/`aud`/`lifetime`, `ValidAlgorithms = ["RS256"]`) **after** any `configureJwtBearer`, so the loose-profile footgun cannot be reintroduced. It pulls in `Microsoft.AspNetCore.Authentication.JwtBearer`, so it is **not** trim/AOT-safe — for an AOT host (or an algorithm the helper does not pin), register your scheme yourself and pair it with `AddTrellisInternalJwtActorProvider`:
+
 ```csharp
 builder.Services.AddAuthentication("Bearer").AddJwtBearer(o =>
 {
