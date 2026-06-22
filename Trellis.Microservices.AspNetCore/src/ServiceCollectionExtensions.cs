@@ -140,8 +140,8 @@ public static class ServiceCollectionExtensions
     /// (pins the gateway's asymmetric algorithm, rejecting <c>alg:none</c> and HMAC key-confusion). Every
     /// validator delegate that could bypass a forced scalar — issuer/audience/lifetime/algorithm/signing-key
     /// validators, the signature validator, and the token reader — is nulled, <c>RequireAudience</c> is
-    /// forced, and scheme forwarding is cleared. <c>ClockSkew</c> defaults to
-    /// 30 seconds unless <paramref name="configureJwtBearer"/> set a non-default value. The actor provider's
+    /// forced, and scheme forwarding is cleared. <c>ClockSkew</c> is capped at 30 seconds (a tighter value
+    /// set via <paramref name="configureJwtBearer"/> is preserved; a looser one is forced down). The actor provider's
     /// scheme, <c>ExpectedIssuer</c>, and <c>ExpectedAudience</c> are likewise forced in a
     /// <c>PostConfigure&lt;TrellisInternalJwtActorOptions&gt;</c> after <paramref name="configureActor"/>.
     /// A startup <c>IValidateOptions&lt;JwtBearerOptions&gt;</c> then re-asserts the strict profile and fails
@@ -275,8 +275,12 @@ public static class ServiceCollectionExtensions
         v.RequireSignedTokens = true;
         v.TryAllIssuerSigningKeys = false;
         v.ValidAlgorithms = ["RS256"];
-        if (v.ClockSkew == TimeSpan.FromMinutes(5))
-            v.ClockSkew = TimeSpan.FromSeconds(30);
+        // Cap ClockSkew at the strict max: a consumer may tighten it, but a wider skew — left at the 5-minute
+        // default or set large via configureJwtBearer — widens the token expiry/replay window and weakens
+        // lifetime validation, so force anything looser down. A later PostConfigure that widens it past the max
+        // is caught fail-closed by the startup validator.
+        if (v.ClockSkew > TrellisInternalJwtBearerOptionsValidator.MaxClockSkew)
+            v.ClockSkew = TrellisInternalJwtBearerOptionsValidator.MaxClockSkew;
 
         // A custom validator/resolver delegate is exactly the loose-profile escape the guardrail must close —
         // each could replace or bypass a forced scalar check above (or supply attacker-controlled keys).

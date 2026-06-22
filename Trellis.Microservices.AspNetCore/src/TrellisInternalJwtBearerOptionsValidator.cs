@@ -18,6 +18,12 @@ internal sealed class TrellisInternalJwtBearerOptionsValidator : IValidateOption
 {
     private static readonly string[] RequiredAlgorithms = ["RS256"];
 
+    /// <summary>
+    /// Strict upper bound on <c>ClockSkew</c>. A wider skew widens the token expiry/replay window and weakens
+    /// lifetime validation, so the helper forces anything looser down to this and the validator rejects more.
+    /// </summary>
+    internal static readonly TimeSpan MaxClockSkew = TimeSpan.FromSeconds(30);
+
     private readonly string _scheme;
     private readonly string _issuer;
     private readonly string _audience;
@@ -66,6 +72,8 @@ internal sealed class TrellisInternalJwtBearerOptionsValidator : IValidateOption
             failures.Add("ValidateLifetime must be true.");
         if (!v.RequireExpirationTime)
             failures.Add("RequireExpirationTime must be true — a token without exp must be rejected.");
+        if (v.ClockSkew > MaxClockSkew)
+            failures.Add($"ClockSkew must be at most {MaxClockSkew.TotalSeconds:0}s — a wider skew widens the token expiry/replay window and weakens lifetime validation.");
         if (!v.RequireSignedTokens)
             failures.Add("RequireSignedTokens must be true.");
         if (!v.ValidateIssuerSigningKey)

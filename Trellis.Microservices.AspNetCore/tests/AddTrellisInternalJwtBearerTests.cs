@@ -114,7 +114,35 @@ public sealed class AddTrellisInternalJwtBearerTests
 
         var jwt = ResolveJwtBearer(services);
         jwt.RequireHttpsMetadata.Should().BeFalse("a plaintext in-cluster gateway is a legitimate override");
-        jwt.TokenValidationParameters.ClockSkew.Should().Be(TimeSpan.FromSeconds(5), "a non-default ClockSkew is respected");
+        jwt.TokenValidationParameters.ClockSkew.Should().Be(TimeSpan.FromSeconds(5), "a tighter ClockSkew is respected");
+    }
+
+    [Fact]
+    public void AddTrellisInternalJwtBearer_ConfigureJwtBearer_WideClockSkew_IsForcedDownTo30s()
+    {
+        var services = new ServiceCollection();
+
+        services.AddTrellisInternalJwtBearer(Issuer, Audience, configureJwtBearer: o =>
+            o.TokenValidationParameters.ClockSkew = TimeSpan.FromMinutes(10));
+
+        var jwt = ResolveJwtBearer(services);
+        jwt.TokenValidationParameters.ClockSkew.Should().Be(TimeSpan.FromSeconds(30), "a skew wider than the strict max is forced down");
+    }
+
+    [Fact]
+    public void AddTrellisInternalJwtBearer_LaterPostConfigure_WidensClockSkew_FailsClosed()
+    {
+        var services = new ServiceCollection();
+
+        services.AddTrellisInternalJwtBearer(Issuer, Audience);
+        // The forcing caps ClockSkew, but this later PostConfigure widens it past the strict max — which
+        // widens the expiry/replay window — so the startup validator must reject it.
+        services.PostConfigure<JwtBearerOptions>("Bearer", o => o.TokenValidationParameters.ClockSkew = TimeSpan.FromMinutes(10));
+
+        var provider = services.BuildServiceProvider();
+        var act = () => provider.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>().Get("Bearer");
+
+        act.Should().Throw<OptionsValidationException>().WithMessage("*ClockSkew*");
     }
 
     [Fact]
