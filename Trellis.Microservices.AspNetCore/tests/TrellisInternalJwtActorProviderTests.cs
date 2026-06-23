@@ -689,7 +689,7 @@ public sealed class TrellisInternalJwtActorProviderTests
     [Fact]
     public async Task GetCurrentActorAsync_TwoRequiredMissing_EndpointAllowsOnlyOne_FailsClosedOnTheOther()
     {
-        var (provider, _) = NewProviderWithEndpoint(ValidIdentity(), EndpointAllowingMissing("tenant_id"), opts => opts
+        var (provider, log) = NewProviderWithEndpoint(ValidIdentity(), EndpointAllowingMissing("tenant_id"), opts => opts
             .WithRequiredAttributes("tenant_id", "mfa")
             .WithAttributeMap("tenant_id", "tid").WithAttributeMap("mfa", "amr")
             .WithExpectedIssuerAudience(Issuer, Audience));
@@ -697,6 +697,8 @@ public sealed class TrellisInternalJwtActorProviderTests
         var result = await provider.GetCurrentActorAsync(TestContext.Current.CancellationToken);
 
         result.HasValue.Should().BeFalse("mfa is still required and is not named by the exemption");
+        log.Entries.Should().NotContain(e => e.EventId.Id == 12,
+            "the exemption audit must not fire when the request is rejected for another reason — the exemption did not change the outcome");
     }
 
     [Fact]

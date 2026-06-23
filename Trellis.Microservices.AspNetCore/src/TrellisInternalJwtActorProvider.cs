@@ -420,6 +420,10 @@ public sealed partial class TrellisInternalJwtActorProvider : IActorProvider, IP
         // exemption-marked endpoint that DO carry every attribute allocate nothing. Uses the SAME
         // comparer as the required set, so a case-variant exemption fails CLOSED rather than opening a hole.
         HashSet<string>? exempt = null;
+        // Exemptions that actually waived an absent required attribute. Audited only on the SUCCESS
+        // path below — never when the request is ultimately rejected for another reason — so the
+        // audit reflects only exemptions that genuinely changed the outcome.
+        List<string>? appliedExemptions = null;
 
         if (_options.AttributeClaimMap is not null)
         {
@@ -439,7 +443,7 @@ public sealed partial class TrellisInternalJwtActorProvider : IActorProvider, IP
                         if (allowMissingAttributeNames.Count > 0
                             && (exempt ??= new HashSet<string>(allowMissingAttributeNames, mapComparer)).Contains(attrName))
                         {
-                            LogRequiredAttributeAllowedMissing(_logger, _options.AuthenticationScheme, attrName);
+                            (appliedExemptions ??= new List<string>()).Add(attrName);
                             continue;
                         }
 
@@ -490,6 +494,16 @@ public sealed partial class TrellisInternalJwtActorProvider : IActorProvider, IP
 
                 result[attrName] = value;
             }
+        }
+
+        // Success: the entire required-attribute set validated. Audit the exemptions that actually
+        // changed the outcome (a required attribute waived on an endpoint marked
+        // [AllowMissingActorAttributes]). Deferred to here so a later validation failure above never
+        // emits a misleading "allowed missing" event for a request that was still rejected.
+        if (appliedExemptions is not null)
+        {
+            foreach (var name in appliedExemptions)
+                LogRequiredAttributeAllowedMissing(_logger, _options.AuthenticationScheme, name);
         }
 
         attributes = result;
