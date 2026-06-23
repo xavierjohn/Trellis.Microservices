@@ -35,7 +35,12 @@ public static class DevSigningKey
         {
             rsa = RSA.Create(2048);
             if (!string.IsNullOrWhiteSpace(path))
+            {
+                var directory = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(directory))
+                    Directory.CreateDirectory(directory);
                 File.WriteAllText(path, rsa.ExportPkcs8PrivateKeyPem());
+            }
         }
 
         // kid derived from a hash of the public key bytes so a persisted key keeps a stable kid across

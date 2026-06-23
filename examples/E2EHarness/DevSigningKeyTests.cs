@@ -36,6 +36,26 @@ public sealed class DevSigningKeyTests
     }
 
     [Fact]
+    public void LoadOrCreate_PathInNonexistentDirectory_CreatesDirectoryAndPersists()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"trellis-dev-key-dir-{Guid.NewGuid():N}");
+        var path = Path.Combine(dir, "dev.pem");
+        try
+        {
+            var key = DevSigningKey.LoadOrCreate(path);
+
+            Directory.Exists(dir).Should().BeTrue("the opt-in path creates a missing directory");
+            File.Exists(path).Should().BeTrue();
+            key.KeyId.Should().StartWith("sample-key-");
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void LoadOrCreate_ExistingFile_ReloadsTheSameKeyAcrossRestart()
     {
         var path = Path.Combine(Path.GetTempPath(), $"trellis-dev-key-{Guid.NewGuid():N}.pem");
