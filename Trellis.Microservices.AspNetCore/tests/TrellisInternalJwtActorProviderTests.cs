@@ -647,6 +647,282 @@ public sealed class TrellisInternalJwtActorProviderTests
             .WithMessage("*HttpContext*");
     }
 
+    // === Bootstrap actor mode — [AllowMissingActorAttributes] exemption ===
+
+    [Fact]
+    public async Task GetCurrentActorAsync_RequiredAttributeMissing_NoEndpoint_FailsClosed()
+    {
+        var (provider, _) = NewProviderWithEndpoint(ValidIdentity(), endpoint: null, opts => opts
+            .WithRequiredAttributes("tenant_id").WithAttributeMap("tenant_id", "tid")
+            .WithExpectedIssuerAudience(Issuer, Audience));
+
+        var result = await provider.GetCurrentActorAsync(TestContext.Current.CancellationToken);
+
+        result.HasValue.Should().BeFalse("a required attribute is missing and no endpoint exempts it");
+    }
+
+    [Fact]
+    public async Task GetCurrentActorAsync_RequiredAttributeMissing_EndpointAllowsIt_Succeeds()
+    {
+        var (provider, _) = NewProviderWithEndpoint(ValidIdentity(), EndpointAllowingMissing("tenant_id"), opts => opts
+            .WithRequiredAttributes("tenant_id").WithAttributeMap("tenant_id", "tid")
+            .WithExpectedIssuerAudience(Issuer, Audience));
+
+        var result = await provider.GetCurrentActorAsync(TestContext.Current.CancellationToken);
+
+        result.HasValue.Should().BeTrue("the endpoint is marked [AllowMissingActorAttributes(\"tenant_id\")]");
+        result.Value.Attributes.Should().NotContainKey("tenant_id");
+    }
+
+    [Fact]
+    public async Task GetCurrentActorAsync_RequiredAttributeMissing_EndpointAllowsDifferentAttribute_FailsClosed()
+    {
+        var (provider, _) = NewProviderWithEndpoint(ValidIdentity(), EndpointAllowingMissing("mfa"), opts => opts
+            .WithRequiredAttributes("tenant_id").WithAttributeMap("tenant_id", "tid")
+            .WithExpectedIssuerAudience(Issuer, Audience));
+
+        var result = await provider.GetCurrentActorAsync(TestContext.Current.CancellationToken);
+
+        result.HasValue.Should().BeFalse("the exemption names a different attribute than the missing one");
+    }
+
+    [Fact]
+    public async Task GetCurrentActorAsync_TwoRequiredMissing_EndpointAllowsOnlyOne_FailsClosedOnTheOther()
+    {
+        var (provider, _) = NewProviderWithEndpoint(ValidIdentity(), EndpointAllowingMissing("tenant_id"), opts => opts
+            .WithRequiredAttributes("tenant_id", "mfa")
+            .WithAttributeMap("tenant_id", "tid").WithAttributeMap("mfa", "amr")
+            .WithExpectedIssuerAudience(Issuer, Audience));
+
+        var result = await provider.GetCurrentActorAsync(TestContext.Current.CancellationToken);
+
+        result.HasValue.Should().BeFalse("mfa is still required and is not named by the exemption");
+    }
+
+    [Fact]
+    public async Task GetCurrentActorAsync_ExemptedAttributePresentButEmpty_FailsClosed()
+    {
+        var (provider, _) = NewProviderWithEndpoint(
+            ValidIdentity(b => b.Attribute("tid", "")),
+            EndpointAllowingMissing("tenant_id"),
+            opts => opts.WithRequiredAttributes("tenant_id").WithAttributeMap("tenant_id", "tid")
+                .WithExpectedIssuerAudience(Issuer, Audience));
+
+        var result = await provider.GetCurrentActorAsync(TestContext.Current.CancellationToken);
+
+        result.HasValue.Should().BeFalse("absence-only: a present-but-empty value is still rejected");
+    }
+
+    [Fact]
+    public async Task GetCurrentActorAsync_ExemptedAttributeDuplicated_FailsClosed()
+    {
+        var (provider, _) = NewProviderWithEndpoint(
+            ValidIdentity(b => b.Attribute("tid", "tenant-a").Attribute("tid", "tenant-b")),
+            EndpointAllowingMissing("tenant_id"),
+            opts => opts.WithRequiredAttributes("tenant_id").WithAttributeMap("tenant_id", "tid")
+                .WithExpectedIssuerAudience(Issuer, Audience));
+
+        var result = await provider.GetCurrentActorAsync(TestContext.Current.CancellationToken);
+
+        result.HasValue.Should().BeFalse("absence-only: a duplicated claim is ambiguous and still rejected");
+    }
+
+    [Fact]
+    public async Task GetCurrentActorAsync_ExemptedAttributeShaped_FailsClosedUnderStrictClaimShape()
+    {
+        var (provider, _) = NewProviderWithEndpoint(
+            ValidIdentity(b => b.Attribute("tid", "tenant-a,tenant-b")),
+            EndpointAllowingMissing("tenant_id"),
+            opts => opts.WithRequiredAttributes("tenant_id").WithAttributeMap("tenant_id", "tid")
+                .WithStrictClaimShape(true).WithExpectedIssuerAudience(Issuer, Audience));
+
+        var result = await provider.GetCurrentActorAsync(TestContext.Current.CancellationToken);
+
+        result.HasValue.Should().BeFalse("absence-only: a present comma-joined value still fails strict claim shape");
+    }
+
+    [Fact]
+    public async Task GetCurrentActorAsync_ExemptionDoesNotBypassActorIdRequirement_FailsClosed()
+    {
+        var identity = NewIdentity(b => b
+            .Iss(Issuer).Aud(Audience).ContractVersion("1")
+            .Permissions("orders:read").ForbiddenPermissions());
+
+        var (provider, _) = NewProviderWithEndpoint(identity, EndpointAllowingMissing("tenant_id"), opts => opts
+            .WithRequiredAttributes("tenant_id").WithAttributeMap("tenant_id", "tid")
+            .WithExpectedIssuerAudience(Issuer, Audience));
+
+        var result = await provider.GetCurrentActorAsync(TestContext.Current.CancellationToken);
+
+        result.HasValue.Should().BeFalse("the exemption only relaxes the named attribute; the actor-id requirement still applies");
+    }
+
+    [Fact]
+    public async Task GetCurrentActorAsync_Exemption_AuditsAttributeNameNotActorIdOrValues()
+    {
+        var (provider, log) = NewProviderWithEndpoint(ValidIdentity(), EndpointAllowingMissing("tenant_id"), opts => opts
+            .WithRequiredAttributes("tenant_id").WithAttributeMap("tenant_id", "tid")
+            .WithExpectedIssuerAudience(Issuer, Audience));
+
+        var result = await provider.GetCurrentActorAsync(TestContext.Current.CancellationToken);
+
+        result.HasValue.Should().BeTrue();
+
+        var auditEntry = log.Entries.Should().ContainSingle(e => e.EventId.Id == 12).Subject;
+        auditEntry.Level.Should().Be(LogLevel.Information);
+        auditEntry.Message.Should().Contain("tenant_id", "the exemption is audited by attribute name");
+
+        // No entry — message OR structured state — may carry the actor id (or any claim value / JWT / path).
+        log.Entries.Should().NotContain(
+            e => e.Message.Contains("user-secret-42") || e.State.Contains("user-secret-42"),
+            "the audit log must never contain the actor id or any claim value");
+    }
+
+    [Fact]
+    public async Task GetCurrentActorAsync_NoExemption_DoesNotEmitExemptionAudit()
+    {
+        var (provider, log) = NewProviderWithEndpoint(
+            ValidIdentity(b => b.Attribute("tid", "tenant-7")),
+            EndpointAllowingMissing("tenant_id"),
+            opts => opts.WithRequiredAttributes("tenant_id").WithAttributeMap("tenant_id", "tid")
+                .WithExpectedIssuerAudience(Issuer, Audience));
+
+        var result = await provider.GetCurrentActorAsync(TestContext.Current.CancellationToken);
+
+        result.HasValue.Should().BeTrue();
+        log.Entries.Should().NotContain(e => e.Message.Contains("allowed missing"),
+            "the exemption audit fires only when it actually changes the outcome");
+    }
+
+    [Fact]
+    public async Task GetCurrentActorAsync_Exemption_DoesNotBypassContractVersionSentinel()
+    {
+        var identity = NewIdentity(b => b
+            .Sub("user-secret-42").Iss(Issuer).Aud(Audience).ContractVersion("999")
+            .Permissions("orders:read").ForbiddenPermissions());
+
+        var (provider, _) = NewProviderWithEndpoint(identity, EndpointAllowingMissing("tenant_id"), opts => opts
+            .WithRequiredAttributes("tenant_id").WithAttributeMap("tenant_id", "tid")
+            .WithExpectedIssuerAudience(Issuer, Audience));
+
+        var result = await provider.GetCurrentActorAsync(TestContext.Current.CancellationToken);
+
+        result.HasValue.Should().BeFalse("the exemption must not bypass the contract-version sentinel");
+    }
+
+    [Fact]
+    public async Task GetCurrentActorAsync_Exemption_DoesNotBypassPermissionsCountClaim()
+    {
+        // Count claim says 5 but only one permission is present → count mismatch.
+        var identity = NewIdentity(b => b
+            .Sub("user-secret-42").Iss(Issuer).Aud(Audience).ContractVersion("1")
+            .Claim("trellis_permissions_count", "5").Claim("permissions", "orders:read")
+            .ForbiddenPermissions());
+
+        var (provider, _) = NewProviderWithEndpoint(identity, EndpointAllowingMissing("tenant_id"), opts => opts
+            .WithRequiredAttributes("tenant_id").WithAttributeMap("tenant_id", "tid")
+            .WithExpectedIssuerAudience(Issuer, Audience));
+
+        var result = await provider.GetCurrentActorAsync(TestContext.Current.CancellationToken);
+
+        result.HasValue.Should().BeFalse("the exemption must not bypass the permissions count claim");
+    }
+
+    [Fact]
+    public async Task GetCurrentActorAsync_Exemption_DoesNotBypassExpectedIssuer()
+    {
+        var identity = NewIdentity(b => b
+            .Sub("user-secret-42").Iss("https://evil.example").Aud(Audience).ContractVersion("1")
+            .Permissions("orders:read").ForbiddenPermissions());
+
+        var (provider, _) = NewProviderWithEndpoint(identity, EndpointAllowingMissing("tenant_id"), opts => opts
+            .WithRequiredAttributes("tenant_id").WithAttributeMap("tenant_id", "tid")
+            .WithExpectedIssuerAudience(Issuer, Audience));
+
+        var result = await provider.GetCurrentActorAsync(TestContext.Current.CancellationToken);
+
+        result.HasValue.Should().BeFalse("the exemption must not bypass the ExpectedIssuer cross-check");
+    }
+
+    [Fact]
+    public async Task GetCurrentActorAsync_Exemption_DoesNotBypassSchemeAuthentication()
+    {
+        // A forged, fully-valid principal (incl. tenant_id) is planted on HttpContext.User while the
+        // configured scheme authentication FAILS. The provider must authenticate the scheme explicitly
+        // and NEVER read HttpContext.User — so the forged claims must not yield an actor.
+        var forged = new ClaimsPrincipal(NewIdentity(b => b
+            .Sub("forged-admin").Iss(Issuer).Aud(Audience).ContractVersion("1")
+            .Permissions("orders:read").ForbiddenPermissions().Attribute("tid", "tenant-7")));
+        var fakeAuth = new FakeAuthenticationService(AuthenticateResult.Fail("denied"));
+        var httpContext = new DefaultHttpContext
+        {
+            User = forged,
+            RequestServices = BuildRequestServices(fakeAuth),
+        };
+        httpContext.SetEndpoint(EndpointAllowingMissing("tenant_id"));
+
+        var (provider, _) = NewProvider(httpContext, opts => opts
+            .WithRequiredAttributes("tenant_id").WithAttributeMap("tenant_id", "tid")
+            .WithExpectedIssuerAudience(Issuer, Audience));
+
+        var result = await provider.GetCurrentActorAsync(TestContext.Current.CancellationToken);
+
+        result.HasValue.Should().BeFalse(
+            "the exemption must not bypass scheme authentication, and the provider must never fall back to HttpContext.User");
+        fakeAuth.LastAuthenticateScheme.Should().Be("Bearer",
+            "the provider authenticates the configured Bearer scheme explicitly");
+    }
+
+    [Fact]
+    public async Task GetCurrentActorAsync_CaseVariantExemption_FailsClosedUnderOrdinalComparer()
+    {
+        // Required "tenant_id" under the default ordinal map; the exemption names "TENANT_ID".
+        // No ordinal match → the attribute stays required → fail closed (never open).
+        var (provider, _) = NewProviderWithEndpoint(ValidIdentity(), EndpointAllowingMissing("TENANT_ID"), opts => opts
+            .WithRequiredAttributes("tenant_id").WithAttributeMap("tenant_id", "tid")
+            .WithExpectedIssuerAudience(Issuer, Audience));
+
+        var result = await provider.GetCurrentActorAsync(TestContext.Current.CancellationToken);
+
+        result.HasValue.Should().BeFalse("a case-variant exemption does not match under the ordinal comparer and fails closed");
+    }
+
+    [Fact]
+    public async Task GetCurrentActorAsync_EndpointWithoutExemptionMetadata_FailsClosed()
+    {
+        var endpoint = new Endpoint(requestDelegate: null, new EndpointMetadataCollection(), "no-exemption");
+
+        var (provider, _) = NewProviderWithEndpoint(ValidIdentity(), endpoint, opts => opts
+            .WithRequiredAttributes("tenant_id").WithAttributeMap("tenant_id", "tid")
+            .WithExpectedIssuerAudience(Issuer, Audience));
+
+        var result = await provider.GetCurrentActorAsync(TestContext.Current.CancellationToken);
+
+        result.HasValue.Should().BeFalse("an endpoint without [AllowMissingActorAttributes] enforces every required attribute");
+    }
+
+    [Fact]
+    public async Task GetCurrentActorAsync_MultipleExemptionMetadata_AreUnioned()
+    {
+        // Method- and class-level instances are combined: one names tenant_id, the other mfa.
+        var endpoint = new Endpoint(
+            requestDelegate: null,
+            new EndpointMetadataCollection(
+                new AllowMissingActorAttributesAttribute("tenant_id"),
+                new AllowMissingActorAttributesAttribute("mfa")),
+            "two-exemptions");
+
+        var (provider, _) = NewProviderWithEndpoint(ValidIdentity(), endpoint, opts => opts
+            .WithRequiredAttributes("tenant_id", "mfa")
+            .WithAttributeMap("tenant_id", "tid").WithAttributeMap("mfa", "amr")
+            .WithExpectedIssuerAudience(Issuer, Audience));
+
+        var result = await provider.GetCurrentActorAsync(TestContext.Current.CancellationToken);
+
+        result.HasValue.Should().BeTrue("method- and class-level exemptions are unioned");
+        result.Value.Attributes.Should().NotContainKey("tenant_id").And.NotContainKey("mfa");
+    }
+
     // === IProvideActorVaryHeaders ===
 
     [Fact]
@@ -706,6 +982,37 @@ public sealed class TrellisInternalJwtActorProviderTests
         var provider = new TrellisInternalJwtActorProvider(accessor, options, log);
         return (provider, log);
     }
+
+    private static (TrellisInternalJwtActorProvider Provider, CapturingLogger Log) NewProviderWithEndpoint(
+        ClaimsIdentity identity,
+        Endpoint? endpoint,
+        Action<OptionsBuilder> configureOptions)
+    {
+        var httpContext = new DefaultHttpContext
+        {
+            RequestServices = BuildRequestServices(
+                new FakeAuthenticationService(
+                    AuthenticateResult.Success(NewTicket(new ClaimsPrincipal(identity))))),
+        };
+        if (endpoint is not null)
+            httpContext.SetEndpoint(endpoint);
+
+        return NewProvider(httpContext, configureOptions);
+    }
+
+    private static Endpoint EndpointAllowingMissing(params string[] attributeNames) =>
+        new(
+            requestDelegate: null,
+            new EndpointMetadataCollection(new AllowMissingActorAttributesAttribute(attributeNames)),
+            displayName: "test-bootstrap-endpoint");
+
+    private static ClaimsIdentity ValidIdentity(Action<IdentityBuilder>? attributes = null) =>
+        NewIdentity(b =>
+        {
+            b.Sub("user-secret-42").Iss(Issuer).Aud(Audience).ContractVersion("1")
+                .Permissions("orders:read").ForbiddenPermissions();
+            attributes?.Invoke(b);
+        });
 
     private static AuthenticationTicket NewTicket(ClaimsPrincipal principal) =>
         new(principal, Scheme);
@@ -824,8 +1131,13 @@ public sealed class TrellisInternalJwtActorProviderTests
 
     private sealed class FakeAuthenticationService(AuthenticateResult result) : IAuthenticationService
     {
-        public Task<AuthenticateResult> AuthenticateAsync(HttpContext context, string? scheme) =>
-            Task.FromResult(result);
+        public string? LastAuthenticateScheme { get; private set; }
+
+        public Task<AuthenticateResult> AuthenticateAsync(HttpContext context, string? scheme)
+        {
+            LastAuthenticateScheme = scheme;
+            return Task.FromResult(result);
+        }
 
         public Task ChallengeAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) =>
             Task.CompletedTask;

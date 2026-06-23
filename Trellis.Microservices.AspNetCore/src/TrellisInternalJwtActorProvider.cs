@@ -218,11 +218,38 @@ public sealed partial class TrellisInternalJwtActorProvider : IActorProvider, IP
         var forbiddenPermissions = forbiddenClaims.Select(c => c.Value).ToFrozenSet(StringComparer.Ordinal);
 
         // 7. Attributes. RequiredAttributes are mandatory & exactly-one; optional mapped
-        //    attributes are at-most-one (duplicates are ambiguous → fail closed).
-        if (!TryBuildAttributes(identity, out var attributes))
+        //    attributes are at-most-one (duplicates are ambiguous → fail closed). An endpoint
+        //    marked [AllowMissingActorAttributes] may waive the GENUINE ABSENCE of the named
+        //    required attributes (bootstrap / pre-tenant endpoints); nothing else is relaxed.
+        var allowMissingAttributeNames = ReadAllowMissingAttributeNames(httpContext);
+        if (!TryBuildAttributes(identity, allowMissingAttributeNames, out var attributes))
             return Maybe<Actor>.None;
 
         return Maybe.From(new Actor(actorId, permissions, forbiddenPermissions, attributes));
+    }
+
+    /// <summary>
+    /// Reads the union of actor-attribute names that the matched endpoint allows to be missing,
+    /// from every <see cref="AllowMissingActorAttributesAttribute"/> on the endpoint (method- and
+    /// class-level instances are combined). Returns an empty list when there is no endpoint (the
+    /// provider was invoked before routing, or no endpoint matched) or no such metadata is present —
+    /// i.e. fail-closed: the default is to enforce every required attribute.
+    /// </summary>
+    private static IReadOnlyList<string> ReadAllowMissingAttributeNames(HttpContext httpContext)
+    {
+        var endpoint = httpContext.GetEndpoint();
+        if (endpoint is null)
+            return Array.Empty<string>();
+
+        var metadata = endpoint.Metadata.GetOrderedMetadata<AllowMissingActorAttributesAttribute>();
+        if (metadata.Count == 0)
+            return Array.Empty<string>();
+
+        var names = new List<string>();
+        foreach (var item in metadata)
+            names.AddRange(item.AttributeNames);
+
+        return names;
     }
 
     /// <summary>
@@ -361,8 +388,17 @@ public sealed partial class TrellisInternalJwtActorProvider : IActorProvider, IP
     /// must be present with exactly one non-empty value; optional attributes are
     /// at-most-one (duplicates fail closed because ambiguous). Strict-shape validation
     /// also applies to mapped-attribute claim values.
+    /// <para>
+    /// <paramref name="allowMissingAttributeNames"/> carries the endpoint-scoped, absence-only
+    /// exemption (see <see cref="AllowMissingActorAttributesAttribute"/>): a named required attribute
+    /// that is genuinely absent is waived; present-but-empty, duplicated, and strict-shape violations
+    /// are still rejected, as is every attribute not named.
+    /// </para>
     /// </summary>
-    private bool TryBuildAttributes(ClaimsIdentity identity, out IReadOnlyDictionary<string, string> attributes)
+    private bool TryBuildAttributes(
+        ClaimsIdentity identity,
+        IReadOnlyCollection<string> allowMissingAttributeNames,
+        out IReadOnlyDictionary<string, string> attributes)
     {
         var result = new Dictionary<string, string>(_options.AttributeClaimMap?.Count ?? 0, StringComparer.Ordinal);
         // RequiredAttributes lookup must use the SAME comparer as AttributeClaimMap; otherwise
@@ -373,6 +409,12 @@ public sealed partial class TrellisInternalJwtActorProvider : IActorProvider, IP
         var required = _options.RequiredAttributes is { Count: > 0 } reqList
             ? new HashSet<string>(reqList, mapComparer)
             : new HashSet<string>(mapComparer);
+        // Endpoint-scoped, absence-only exemption (bootstrap actor mode). Built with the SAME
+        // comparer as the required set so a case-variant exemption fails CLOSED (the attribute
+        // stays required) rather than opening a hole.
+        var exempt = allowMissingAttributeNames.Count > 0
+            ? new HashSet<string>(allowMissingAttributeNames, mapComparer)
+            : null;
 
         if (_options.AttributeClaimMap is not null)
         {
@@ -385,6 +427,15 @@ public sealed partial class TrellisInternalJwtActorProvider : IActorProvider, IP
                 {
                     if (isRequired)
                     {
+                        // Absence-only exemption: a genuinely-missing named attribute is waived for
+                        // endpoints marked [AllowMissingActorAttributes]. The present-but-empty,
+                        // duplicated, and strict-shape paths below are deliberately unaffected.
+                        if (exempt is not null && exempt.Contains(attrName))
+                        {
+                            LogRequiredAttributeAllowedMissing(_logger, _options.AuthenticationScheme, attrName);
+                            continue;
+                        }
+
                         LogRequiredAttributeMissing(_logger, _options.AuthenticationScheme, attrName);
                         attributes = null!;
                         return false;
@@ -519,4 +570,11 @@ public sealed partial class TrellisInternalJwtActorProvider : IActorProvider, IP
         Level = LogLevel.Warning,
         Message = "Internal-JWT scheme {Scheme} rejected: no 'aud' claim matches expected audience {ExpectedAudience}.")]
     private static partial void LogExpectedAudienceMismatch(ILogger logger, string scheme, string expectedAudience);
+
+    [LoggerMessage(
+        EventId = 12,
+        EventName = "InternalJwtRequiredAttributeAllowedMissing",
+        Level = LogLevel.Information,
+        Message = "Internal-JWT scheme {Scheme} allowed missing required attribute {AttributeName} for an endpoint marked [AllowMissingActorAttributes].")]
+    private static partial void LogRequiredAttributeAllowedMissing(ILogger logger, string scheme, string attributeName);
 }
