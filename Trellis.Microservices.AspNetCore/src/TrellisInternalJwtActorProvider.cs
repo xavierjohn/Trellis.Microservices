@@ -245,6 +245,12 @@ public sealed partial class TrellisInternalJwtActorProvider : IActorProvider, IP
         if (metadata.Count == 0)
             return Array.Empty<string>();
 
+        // Common case: a single [AllowMissingActorAttributes] — return its already-built, immutable
+        // name list directly, with no per-request allocation. Multiple instances (method- and
+        // class-level combined) are unioned into a new list.
+        if (metadata.Count == 1)
+            return metadata[0].AttributeNames;
+
         var names = new List<string>();
         foreach (var item in metadata)
             names.AddRange(item.AttributeNames);
