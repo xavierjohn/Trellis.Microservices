@@ -50,6 +50,8 @@ Aspire boots:
 
 > The dashboard requires HTTPS by default. If you're running inside a sandbox where the dev cert isn't trusted, set `ASPIRE_ALLOW_UNSECURED_TRANSPORT=true` and use the `http` launch profile in `Sample.AppHost/Properties/launchSettings.json`.
 
+> **Tip — keep tokens valid across gateway restarts.** The gateway generates a fresh RSA signing key on every startup, so a token minted before a restart stops validating afterward (the consumer's JWKS no longer holds the matching key). For iterative local dev, set `DevSigningKeyPath` (config key or environment variable) to a file path: the gateway loads the key if the file exists, otherwise generates and saves it, so the `kid` stays stable and previously minted tokens keep validating. **Dev only** — never persist an unencrypted signing key in production; real deployments load signing material from a secret store and rotate via `PreviousSigningKeys`.
+
 ### Drive it with curl
 
 The exact same Actor envelope works against either service — the Gateway re-mints per cluster:
