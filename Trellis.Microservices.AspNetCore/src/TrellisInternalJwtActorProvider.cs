@@ -409,12 +409,11 @@ public sealed partial class TrellisInternalJwtActorProvider : IActorProvider, IP
         var required = _options.RequiredAttributes is { Count: > 0 } reqList
             ? new HashSet<string>(reqList, mapComparer)
             : new HashSet<string>(mapComparer);
-        // Endpoint-scoped, absence-only exemption (bootstrap actor mode). Built with the SAME
-        // comparer as the required set so a case-variant exemption fails CLOSED (the attribute
-        // stays required) rather than opening a hole.
-        var exempt = allowMissingAttributeNames.Count > 0
-            ? new HashSet<string>(allowMissingAttributeNames, mapComparer)
-            : null;
+        // Endpoint-scoped, absence-only exemption (bootstrap actor mode). Materialized lazily and at
+        // most once — only when a required attribute is actually absent — so requests to an
+        // exemption-marked endpoint that DO carry every attribute allocate nothing. Uses the SAME
+        // comparer as the required set, so a case-variant exemption fails CLOSED rather than opening a hole.
+        HashSet<string>? exempt = null;
 
         if (_options.AttributeClaimMap is not null)
         {
@@ -429,8 +428,10 @@ public sealed partial class TrellisInternalJwtActorProvider : IActorProvider, IP
                     {
                         // Absence-only exemption: a genuinely-missing named attribute is waived for
                         // endpoints marked [AllowMissingActorAttributes]. The present-but-empty,
-                        // duplicated, and strict-shape paths below are deliberately unaffected.
-                        if (exempt is not null && exempt.Contains(attrName))
+                        // duplicated, and strict-shape paths below are deliberately unaffected. The
+                        // exemption set is built lazily here, on this rarer absent path.
+                        if (allowMissingAttributeNames.Count > 0
+                            && (exempt ??= new HashSet<string>(allowMissingAttributeNames, mapComparer)).Contains(attrName))
                         {
                             LogRequiredAttributeAllowedMissing(_logger, _options.AuthenticationScheme, attrName);
                             continue;
