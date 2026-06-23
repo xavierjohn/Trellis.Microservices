@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+﻿using Gateway;
 using Microsoft.IdentityModel.Tokens;
 using Trellis.Asp.Authorization;
 using Trellis.Yarp;
@@ -59,10 +59,10 @@ builder.Services.AddDevelopmentActorProvider(o =>
 // retired key. Bypassing the pre-publish/probe phase by flipping signers
 // directly causes rejected requests for any consumer whose JWKS cache hasn't
 // been forced to refresh yet. See the cookbook for the runbook.
-var rsa = RSA.Create(2048);
-var publicKeyHash = SHA256.HashData(rsa.ExportSubjectPublicKeyInfo());
-var kid = Convert.ToHexString(publicKeyHash, 0, 8); // first 16 hex chars = 64 bits of pubkey hash
-var signingKey = new RsaSecurityKey(rsa) { KeyId = $"sample-key-{kid}" };
+// Set DevSigningKeyPath (e.g. in appsettings.Development.json or an env var) to persist the key to a
+// file so locally minted tokens survive a gateway restart; unset keeps the fresh-per-startup default
+// described above. The kid (derived from the public-key hash) stays stable when the key is persisted.
+var signingKey = DevSigningKey.LoadOrCreate(builder.Configuration["DevSigningKeyPath"]);
 
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))

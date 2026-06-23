@@ -21,6 +21,7 @@
     <ProjectReference Include="..\..\Trellis.Microservices.Abstractions\src\Trellis.Microservices.Abstractions.csproj" />
     <ProjectReference Include="..\..\Trellis.Microservices.AspNetCore\src\Trellis.Microservices.AspNetCore.csproj" />
     <ProjectReference Include="..\..\Trellis.Yarp\src\Trellis.Yarp.csproj" />
+    <ProjectReference Include="..\Sample\Gateway\Gateway.csproj" />
   </ItemGroup>
 
   <ItemGroup>
