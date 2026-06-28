@@ -20,6 +20,6 @@ public sealed class UpdateOrderHandler : ICommandHandler<UpdateOrderCommand, Res
     public ValueTask<Result<Unit>> Handle(UpdateOrderCommand command, CancellationToken cancellationToken)
     {
         _authorized.GetRequiredResource().Update(command.Customer, command.Total);
-        return new(Result.Ok(Unit.Value));
+        return Result.Ok(Unit.Value).AsValueTask();
     }
 }

@@ -147,5 +147,5 @@ internal sealed record UpdateOrderRequest(string Customer, decimal Total);
 internal sealed record OrderResponse(string Id, string OwnerId, string Customer, decimal Total)
 {
     public static OrderResponse From(Order order) =>
-        new(order.Id.Value, order.OwnerId, order.Customer, order.Total);
+        new(order.Id, order.OwnerId, order.Customer, order.Total);
 }
