@@ -15,7 +15,7 @@ public sealed class ListOrdersHandler : IQueryHandler<ListOrdersQuery, Result<IR
 
     public async ValueTask<Result<IReadOnlyList<Order>>> Handle(ListOrdersQuery query, CancellationToken cancellationToken)
     {
-        var orders = await _repository.ListAllAsync(cancellationToken).ConfigureAwait(false);
+        var orders = await _repository.ListAllAsync(cancellationToken);
         return Result.Ok(orders);
     }
 }

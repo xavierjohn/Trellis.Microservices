@@ -19,5 +19,5 @@ public sealed class GetOrderHandler : IQueryHandler<GetOrderQuery, Result<Order>
     public GetOrderHandler(IAuthorizedResource<GetOrderQuery, Order> authorized) => _authorized = authorized;
 
     public ValueTask<Result<Order>> Handle(GetOrderQuery query, CancellationToken cancellationToken) =>
-        new(Result.Ok(_authorized.GetRequiredResource()));
+        Result.Ok(_authorized.GetRequiredResource()).AsValueTask();
 }

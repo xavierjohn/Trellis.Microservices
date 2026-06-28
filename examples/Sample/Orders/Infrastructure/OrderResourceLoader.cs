@@ -13,12 +13,7 @@ public sealed class OrderResourceLoader : SharedResourceLoaderById<Order, OrderI
 
     public OrderResourceLoader(IOrderRepository repository) => _repository = repository;
 
-    public override async Task<Result<Order>> GetByIdAsync(OrderId id, CancellationToken cancellationToken)
-    {
-        var maybe = await _repository.FindByIdAsync(id, cancellationToken).ConfigureAwait(false);
-
-        return maybe.HasValue
-            ? Result.Ok(maybe.Value)
-            : Result.Fail<Order>(new Error.NotFound(ResourceRef.For<Order>(id.Value)));
-    }
+    public override async Task<Result<Order>> GetByIdAsync(OrderId id, CancellationToken cancellationToken) =>
+        await _repository.FindByIdAsync(id, cancellationToken)
+            .ToResultAsync(Error.NotFound.For<Order>(id));
 }

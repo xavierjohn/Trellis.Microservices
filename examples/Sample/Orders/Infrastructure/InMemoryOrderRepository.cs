@@ -42,7 +42,7 @@ public sealed partial class InMemoryOrderRepository : IOrderRepository
             1,
             new KeyValuePair<string, object?>("order.id", id.Value));
 
-        LogOrderResourceLoaded(_logger, id.Value);
+        LogOrderResourceLoaded(_logger, id);
 
         return ValueTask.FromResult(_orders.TryGetValue(id.Value, out var order)
             ? Maybe.From(order)
