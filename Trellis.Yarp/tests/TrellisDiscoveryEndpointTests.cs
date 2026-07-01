@@ -238,6 +238,8 @@ public sealed class TrellisDiscoveryEndpointTests
                 {
                     s.AddRouting();
                     s.AddSingleton(Options.Create(NewValidOptions()));
+                    s.AddSingleton<ITrellisSigningKeyProvider>(sp =>
+                        new StaticTrellisSigningKeyProvider(sp.GetRequiredService<IOptions<TrellisActorForwardingOptions>>()));
                 });
                 webHost.Configure(app =>
                 {
@@ -348,7 +350,7 @@ public sealed class TrellisDiscoveryEndpointTests
     [Fact]
     public void BuildJwks_NullOptions_Throws()
     {
-        var act = () => TrellisDiscoveryEndpointRouteBuilderExtensions.BuildJwks(null!);
+        var act = () => TrellisDiscoveryEndpointRouteBuilderExtensions.BuildJwks((TrellisActorForwardingOptions)null!);
         act.Should().Throw<ArgumentNullException>();
     }
 
@@ -379,6 +381,8 @@ public sealed class TrellisDiscoveryEndpointTests
                 {
                     services.AddRouting();
                     services.AddSingleton(Options.Create(NewValidOptions()));
+                    services.AddSingleton<ITrellisSigningKeyProvider>(sp =>
+                        new StaticTrellisSigningKeyProvider(sp.GetRequiredService<IOptions<TrellisActorForwardingOptions>>()));
                 });
                 webHost.Configure(app =>
                 {

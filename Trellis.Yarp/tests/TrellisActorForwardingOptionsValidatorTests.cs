@@ -388,6 +388,41 @@ public sealed class TrellisActorForwardingOptionsValidatorTests
         result.FailureMessage.Should().Contain(nameof(TrellisActorForwardingOptions.ActorIdResolver));
     }
 
+    [Fact]
+    public void Validate_CustomSigningKeyProvider_SkipsStaticSigningCredentialValidation()
+    {
+        // When a custom ITrellisSigningKeyProvider owns the ring, startup validation must not require
+        // the static SigningCredentials (they are ignored and validated at runtime instead).
+        var options = new TrellisActorForwardingOptions
+        {
+            Issuer = "https://gateway.internal",
+            PublicBaseUrl = new Uri("https://gateway.internal", UriKind.Absolute),
+            UsesCustomSigningKeyProvider = true,
+            // No SigningCredentials, no PreviousSigningKeys — provider-owned.
+        };
+
+        var result = Validator.Validate(name: null, options);
+
+        result.Succeeded.Should().BeTrue(BecauseOf(result));
+    }
+
+    [Fact]
+    public void Validate_CustomSigningKeyProvider_StillValidatesNonKeyOptions()
+    {
+        // The custom-provider skip is ONLY for the signing keys; issuer / URL / lifetime are still required.
+        var options = new TrellisActorForwardingOptions
+        {
+            Issuer = "",
+            PublicBaseUrl = new Uri("https://gateway.internal", UriKind.Absolute),
+            UsesCustomSigningKeyProvider = true,
+        };
+
+        var result = Validator.Validate(name: null, options);
+
+        result.Failed.Should().BeTrue();
+        result.FailureMessage.Should().Contain(nameof(TrellisActorForwardingOptions.Issuer));
+    }
+
     // === Fixtures ===
 
     private static TrellisActorForwardingOptions Valid(Action<TrellisActorForwardingOptionsBuilder>? mutate = null)

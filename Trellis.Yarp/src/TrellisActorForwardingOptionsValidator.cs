@@ -42,25 +42,31 @@ internal sealed class TrellisActorForwardingOptionsValidator
             failures.Add($"{nameof(options.PublicBaseUrl)} ('{options.PublicBaseUrl}') must be an absolute URI; the discovery endpoint builder uses it verbatim to construct jwks_uri and other discovery URLs and MUST NOT infer them from request context (HttpRequest.Host is spoofable behind reverse proxies).");
         }
 
-        ValidateSigningCredential(options.SigningCredentials, nameof(options.SigningCredentials), failures);
-
-        if (options.PreviousSigningKeys is null)
+        // When a custom ITrellisSigningKeyProvider owns the ring, the keys are validated at runtime
+        // (the validating decorator re-checks every snapshot), so the static SigningCredentials /
+        // PreviousSigningKeys are ignored here and must NOT be required at startup.
+        if (!options.UsesCustomSigningKeyProvider)
         {
-            failures.Add($"{nameof(options.PreviousSigningKeys)} must not be null (use an empty list when no rotation is in flight).");
-        }
-        else
-        {
-            var seenKids = new HashSet<string>(StringComparer.Ordinal);
+            ValidateSigningCredential(options.SigningCredentials, nameof(options.SigningCredentials), failures);
 
-            if (options.SigningCredentials?.Key?.KeyId is { Length: > 0 } activeKid)
-                seenKids.Add(activeKid);
-
-            for (var i = 0; i < options.PreviousSigningKeys.Count; i++)
+            if (options.PreviousSigningKeys is null)
             {
-                var prev = options.PreviousSigningKeys[i];
-                ValidatePreviousKey(prev, i, failures);
-                if (prev?.KeyId is { Length: > 0 } prevKid && !seenKids.Add(prevKid))
-                    failures.Add($"{nameof(options.PreviousSigningKeys)}[{i}] uses kid '{prevKid}' which collides with another key in the rotation ring (the active SigningCredentials.Key or a previous entry); every kid in the ring must be unique so JWKS lookup and audit correlation stay unambiguous.");
+                failures.Add($"{nameof(options.PreviousSigningKeys)} must not be null (use an empty list when no rotation is in flight).");
+            }
+            else
+            {
+                var seenKids = new HashSet<string>(StringComparer.Ordinal);
+
+                if (options.SigningCredentials?.Key?.KeyId is { Length: > 0 } activeKid)
+                    seenKids.Add(activeKid);
+
+                for (var i = 0; i < options.PreviousSigningKeys.Count; i++)
+                {
+                    var prev = options.PreviousSigningKeys[i];
+                    ValidatePreviousKey(prev, i, failures);
+                    if (prev?.KeyId is { Length: > 0 } prevKid && !seenKids.Add(prevKid))
+                        failures.Add($"{nameof(options.PreviousSigningKeys)}[{i}] uses kid '{prevKid}' which collides with another key in the rotation ring (the active SigningCredentials.Key or a previous entry); every kid in the ring must be unique so JWKS lookup and audit correlation stay unambiguous.");
+                }
             }
         }
 
@@ -138,52 +144,18 @@ internal sealed class TrellisActorForwardingOptionsValidator
             failures.Add($"{nameof(TrellisActorForwardingOptions.PreviousSigningKeys)}[{index}] is a {key.GetType().Name}; v1 supports RsaSecurityKey and ECDsaSecurityKey in the rotation ring. X509SecurityKey and JsonWebKey are rejected — unwrap to RsaSecurityKey / ECDsaSecurityKey before adding to PreviousSigningKeys.");
     }
 
-    /// <summary>
-    /// Recognizes symmetric keys including the <see cref="JsonWebKey"/> wrapper case
-    /// where the underlying material is HMAC (<c>kty: "oct"</c>). Without the JWK check,
-    /// a consumer could bypass the asymmetric-only contract by passing
-    /// <c>new SigningCredentials(new JsonWebKey(octKtyJson), SecurityAlgorithms.HmacSha256)</c>
-    /// through validation.
-    /// </summary>
+    // Key classification is centralized in TrellisSigningKeyValidation so the startup
+    // (static-config) path and the runtime (ITrellisSigningKeyProvider) path enforce the
+    // identical asymmetric-only / symmetric-detection rules — no drift between the two.
     private static bool IsSymmetric(SecurityKey key) =>
-        key is SymmetricSecurityKey ||
-        (key is JsonWebKey jwk && string.Equals(jwk.Kty, JsonWebAlgorithmsKeyTypes.Octet, StringComparison.Ordinal));
+        TrellisSigningKeyValidation.IsSymmetric(key);
 
-    /// <summary>
-    /// HMAC algorithms (HS256/HS384/HS512) are symmetric regardless of the key wrapper
-    /// type. Checking <see cref="SigningCredentials.Algorithm"/> directly defends
-    /// against a future <see cref="SecurityKey"/> subclass that confuses the
-    /// <see cref="IsSymmetric"/> structural check.
-    /// </summary>
     private static bool IsSymmetricAlgorithm(string? algorithm) =>
-        algorithm is SecurityAlgorithms.HmacSha256
-            or SecurityAlgorithms.HmacSha384
-            or SecurityAlgorithms.HmacSha512;
+        TrellisSigningKeyValidation.IsSymmetricAlgorithm(algorithm);
 
-    /// <summary>
-    /// v1 supports an allow-list of well-known asymmetric key types:
-    /// <see cref="RsaSecurityKey"/> and <see cref="ECDsaSecurityKey"/>.
-    /// <see cref="X509SecurityKey"/> is rejected explicitly because
-    /// <see cref="JsonWebKeyConverter.ConvertFromSecurityKey"/> does not populate the
-    /// public-key fields the JWKS builder currently emits (<c>n</c>/<c>e</c> for RSA,
-    /// <c>crv</c>/<c>x</c>/<c>y</c> for EC) — the X509 path needs <c>x5c</c>/<c>x5t</c>,
-    /// which v1 does not yet emit. The recommended unwrap is
-    /// <c>new RsaSecurityKey(cert.GetRSAPrivateKey())</c> (or
-    /// <see cref="ECDsaSecurityKey"/> via <c>cert.GetECDsaPrivateKey()</c>) — signing
-    /// requires the PRIVATE key; using the public-key unwrap would pass validation but
-    /// fail at runtime when minting.
-    /// <see cref="JsonWebKey"/> wrappers are likewise rejected: in IdentityModel 8.x,
-    /// <c>JsonWebKeyConverter.ConvertFromSecurityKey(jsonWebKey)</c> throws
-    /// <see cref="NotSupportedException"/> (the converter's input set is the concrete
-    /// SecurityKey subclasses; JsonWebKey is the converter's OUTPUT format, not its
-    /// input). Reject at startup so the consumer is pointed at the workaround rather
-    /// than producing a JWKS endpoint that throws at runtime on its first request.
-    /// </summary>
     private static bool IsSupportedAsymmetricKey(SecurityKey key) =>
-        key is RsaSecurityKey or ECDsaSecurityKey;
+        TrellisSigningKeyValidation.IsSupportedAsymmetricKey(key);
 
-    private static string DescribeJwkKty(SecurityKey key)
-        => key is JsonWebKey jwk && !string.IsNullOrEmpty(jwk.Kty)
-            ? $", kty=\"{jwk.Kty}\""
-            : string.Empty;
+    private static string DescribeJwkKty(SecurityKey key) =>
+        TrellisSigningKeyValidation.DescribeJwkKty(key);
 }

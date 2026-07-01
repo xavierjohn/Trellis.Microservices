@@ -16,7 +16,7 @@ using Microsoft.Extensions.Options;
 /// discovery document and JWKS so downstream services using
 /// <c>AddJwtBearer(o =&gt; o.Authority = gatewayUrl)</c> can fetch the active signing
 /// keys without manual configuration. Pair with
-/// <see cref="TrellisActorForwardingServiceCollectionExtensions.AddTrellisActorForwarding"/>.
+/// <see cref="TrellisActorForwardingServiceCollectionExtensions.AddTrellisActorForwarding(Microsoft.Extensions.DependencyInjection.IReverseProxyBuilder, System.Action{TrellisActorForwardingOptions})"/>.
 /// </summary>
 public static class TrellisDiscoveryEndpointRouteBuilderExtensions
 {
@@ -83,18 +83,17 @@ public static class TrellisDiscoveryEndpointRouteBuilderExtensions
         var jwks = jwksPath ?? DefaultJwksPath;
 
         var oidcEndpoint = endpoints.MapGet(oidc, (HttpContext context) =>
-            Results.Json(
-                BuildDiscoveryDocument(
-                    context.RequestServices.GetRequiredService<IOptions<TrellisActorForwardingOptions>>().Value,
-                    jwks),
-                contentType: "application/json"))
-            .AllowAnonymous();
+        {
+            var options = context.RequestServices.GetRequiredService<IOptions<TrellisActorForwardingOptions>>().Value;
+            var ring = context.RequestServices.GetRequiredService<ITrellisSigningKeyProvider>().GetCurrentRing();
+            return Results.Json(BuildDiscoveryDocument(options, ring, jwks), contentType: "application/json");
+        }).AllowAnonymous();
 
         var jwksEndpoint = endpoints.MapGet(jwks, (HttpContext context) =>
-            Results.Json(
-                BuildJwks(context.RequestServices.GetRequiredService<IOptions<TrellisActorForwardingOptions>>().Value),
-                contentType: "application/json"))
-            .AllowAnonymous();
+        {
+            var ring = context.RequestServices.GetRequiredService<ITrellisSigningKeyProvider>().GetCurrentRing();
+            return Results.Json(BuildJwks(ring), contentType: "application/json");
+        }).AllowAnonymous();
 
         // Return a composite builder that applies any further conventions
         // (.WithTags(...), .RequireHost(...), caching metadata, etc.) to BOTH endpoints.
@@ -108,17 +107,31 @@ public static class TrellisDiscoveryEndpointRouteBuilderExtensions
         string jwksPath)
     {
         ArgumentNullException.ThrowIfNull(options);
+        return BuildDiscoveryDocument(
+            options,
+            TrellisSigningKeyRing.FromActiveAndPrevious(options.SigningCredentials, options.PreviousSigningKeys),
+            jwksPath);
+    }
+
+    internal static OidcDiscoveryDocument BuildDiscoveryDocument(
+        TrellisActorForwardingOptions options,
+        TrellisSigningKeyRing ring,
+        string jwksPath)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(ring);
         ArgumentException.ThrowIfNullOrEmpty(jwksPath);
 
         var jwksUri = new Uri(options.PublicBaseUrl, jwksPath).ToString();
 
-        // Advertise only the active signing algorithm — keeps the discovery document
-        // truthful about what the gateway actually mints. Downstream consumers using
-        // ValidAlgorithms = ["RS256"] (microservices cookbook Recipe 1 recommendation) need the published
-        // alg list to match exactly. v1 assumes rotation is within a single algorithm
-        // family; if the active key's algorithm changes mid-rotation, redeploy with
-        // the new alg or list both at the SigningCredentials.Algorithm level.
-        var algorithm = options.SigningCredentials.Algorithm;
+        // Advertise only the active signing algorithm — the algorithm of the key the ring is
+        // currently signing with — keeps the discovery document truthful about what the gateway
+        // actually mints. Downstream consumers using ValidAlgorithms = ["RS256"] (microservices
+        // cookbook Recipe 1 recommendation) need the published alg list to match exactly. v1
+        // assumes rotation is within a single algorithm family; if the active key's algorithm
+        // changes mid-rotation, the ring's Current.Algorithm follows it and the JWKS alg
+        // normalization below stays in lock-step.
+        var algorithm = ring.Current.Algorithm;
 
         return new OidcDiscoveryDocument
         {
@@ -131,19 +144,24 @@ public static class TrellisDiscoveryEndpointRouteBuilderExtensions
     internal static JsonObject BuildJwks(TrellisActorForwardingOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        return BuildJwks(TrellisSigningKeyRing.FromActiveAndPrevious(options.SigningCredentials, options.PreviousSigningKeys));
+    }
+
+    internal static JsonObject BuildJwks(TrellisSigningKeyRing ring)
+    {
+        ArgumentNullException.ThrowIfNull(ring);
 
         var keys = new JsonArray();
 
-        // v1 normalizes the JWKS "alg" field to the active SigningCredentials.Algorithm
-        // for every key in the ring (including PreviousSigningKeys). The contract assumes
-        // rotation stays within a single algorithm family — if it ever doesn't, the
-        // discovery document's id_token_signing_alg_values_supported (also single-valued
-        // from the active alg) would disagree with the JWKS, so we keep them in lock-step.
-        var activeAlgorithm = options.SigningCredentials.Algorithm;
+        // v1 normalizes the JWKS "alg" field to the active signing algorithm (the ring's
+        // Current.Algorithm) for every key in the ring. The contract assumes rotation stays
+        // within a single algorithm family — if it ever doesn't, the discovery document's
+        // id_token_signing_alg_values_supported (also single-valued from the active alg) would
+        // disagree with the JWKS, so we keep them in lock-step.
+        var activeAlgorithm = ring.Current.Algorithm;
 
-        AppendKey(keys, options.SigningCredentials.Key, activeAlgorithm);
-        foreach (var previous in options.PreviousSigningKeys)
-            AppendKey(keys, previous, activeAlgorithm);
+        foreach (var key in ring.ValidationKeys)
+            AppendKey(keys, key, activeAlgorithm);
 
         return new JsonObject { ["keys"] = keys };
     }
@@ -161,15 +179,12 @@ public static class TrellisDiscoveryEndpointRouteBuilderExtensions
         if (key is null)
             return;
 
-        // Defense in depth: even though TrellisActorForwardingOptionsValidator rejects
-        // symmetric keys at startup (including JsonWebKey { Kty: "oct" } wrappers), refuse
-        // to publish one if it somehow reaches this point. Publishing symmetric key
-        // material would leak the signing secret. Mirror the validator's broader check
-        // so a future refactor that loosens validation does not silently start publishing
-        // symmetric key material.
-        if (key is SymmetricSecurityKey)
-            return;
-        if (key is JsonWebKey octJwk && string.Equals(octJwk.Kty, JsonWebAlgorithmsKeyTypes.Octet, StringComparison.Ordinal))
+        // Defense in depth: even though the startup options validator and the runtime ring
+        // validator both reject symmetric keys (including JsonWebKey { Kty: "oct" } wrappers),
+        // refuse to publish one if it somehow reaches this point. Publishing symmetric key
+        // material would leak the signing secret. Reuse the shared classifier so this check can
+        // never drift from the validators.
+        if (TrellisSigningKeyValidation.IsSymmetric(key))
             return;
 
         // Defense in depth: JsonWebKeyConverter.ConvertFromSecurityKey throws

@@ -259,6 +259,8 @@ Pair this with [Recipe 32 (upstream)](https://github.com/xavierjohn/Trellis/blob
 
 The internal JWT lifetime should be short (Trellis-recommended: 5 minutes). Rotation must cover any token already in flight, so the overlap window is `token_lifetime + ClockSkew + safety_margin`. With 5-minute lifetime + 30-second skew + 30-second safety = **~6 minutes minimum** to retire the previous key.
 
+**Gateway mechanics — how the "add `K_new` / flip signer" steps happen.** With the default static configuration, the gateway performs these steps by *redeploying*: add `K_new` to `PreviousSigningKeys` (pre-publish), then in a later deploy set it as the active `SigningCredentials` (flip), then drop `K_old`. To rotate **without a redeploy**, register a custom [`ITrellisSigningKeyProvider`](trellis-api-yarp.md#itrellissigningkeyprovider-signing-key-rotation-seam): a background rotator adds `K_new` to the ring's `ValidationKeys` (pre-publish), then swaps `Current` to `K_new` (flip) once the warm-up probe confirms fleet convergence. Either mechanism preserves the JWKS overlap window below, and every ring the provider returns is re-validated fail-closed (a structurally invalid ring falls back to the last known-good rather than taking the gateway down). Fleet note: no gateway instance may flip `Current` to `K_new` until every instance publishes `K_new`.
+
 Profile A (JWKS-discovery):
 
 1. **T0** — Gateway adds the new key `K_new` (kid `2026-Q3`) to its JWKS endpoint **alongside** `K_old` (kid `2026-Q2`). Gateway continues to sign tokens with `K_old`.

@@ -415,7 +415,15 @@ public sealed class TrellisActorJwtMinterTests
     [Fact]
     public void Constructor_NullOptions_Throws()
     {
-        var act = () => new TrellisActorJwtMinter(options: null!, TimeProvider.System);
+        var act = () => new TrellisActorJwtMinter(options: null!, NewKeyProvider(), TimeProvider.System);
+        act.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public void Constructor_NullKeyProvider_Throws()
+    {
+        var options = Options.Create(NewValidOptions());
+        var act = () => new TrellisActorJwtMinter(options, keyProvider: null!, TimeProvider.System);
         act.Should().Throw<ArgumentNullException>();
     }
 
@@ -423,7 +431,7 @@ public sealed class TrellisActorJwtMinterTests
     public void Constructor_NullTimeProvider_Throws()
     {
         var options = Options.Create(NewValidOptions());
-        var act = () => new TrellisActorJwtMinter(options, timeProvider: null!);
+        var act = () => new TrellisActorJwtMinter(options, NewKeyProvider(), timeProvider: null!);
         act.Should().Throw<ArgumentNullException>();
     }
 
@@ -448,7 +456,8 @@ public sealed class TrellisActorJwtMinterTests
             projectForbidden: projectForbidden,
             projectAttributes: projectAttributes,
             actorIdResolver: actorIdResolver));
-        var minter = new TrellisActorJwtMinter(options, time);
+        var keyProvider = new StaticTrellisSigningKeyProvider(options);
+        var minter = new TrellisActorJwtMinter(options, keyProvider, time);
         return (minter, options, time);
     }
 
@@ -498,6 +507,9 @@ public sealed class TrellisActorJwtMinterTests
 
     private static SigningCredentials NewRsaSigningCredentials(string kid) =>
         new(new RsaSecurityKey(RSA.Create(2048)) { KeyId = kid }, SecurityAlgorithms.RsaSha256);
+
+    private static StaticTrellisSigningKeyProvider NewKeyProvider() =>
+        new StaticTrellisSigningKeyProvider(Options.Create(NewValidOptions()));
 
     private static Actor NewActor(
         string id = "user-42",
