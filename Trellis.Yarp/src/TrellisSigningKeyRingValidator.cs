@@ -15,11 +15,12 @@ using global::Microsoft.IdentityModel.Tokens;
 /// or publish.
 /// </summary>
 /// <remarks>
-/// Algorithm-family compatibility across the ring (e.g. an RSA key normalized to an ECDSA
-/// algorithm in JWKS) is out of scope for the current single-active-algorithm contract — the
-/// JWKS builder normalizes every key's <c>alg</c> to the active
-/// <see cref="TrellisSigningKeyRing.Current"/> algorithm and v1 assumes rotation stays within a
-/// single algorithm family. Enforcing cross-family rejection is a documented follow-up.
+/// The current signer's key/algorithm compatibility IS enforced (an RSA key with an EC algorithm,
+/// or vice-versa, is rejected before it can poison the last-known-good ring). Algorithm-family
+/// uniformity across the PUBLISHED ring (every <see cref="TrellisSigningKeyRing.ValidationKeys"/>
+/// entry sharing the active family) is not separately enforced — the JWKS builder normalizes every
+/// key's <c>alg</c> to the active <see cref="TrellisSigningKeyRing.Current"/> algorithm and v1
+/// assumes rotation stays within a single algorithm family.
 /// </remarks>
 internal static class TrellisSigningKeyRingValidator
 {
@@ -46,6 +47,10 @@ internal static class TrellisSigningKeyRingValidator
             ValidateKey(current.Key, "Current.Key", failures);
             if (TrellisSigningKeyValidation.IsSymmetricAlgorithm(current.Algorithm))
                 failures.Add($"Current.Algorithm '{current.Algorithm}' is an HMAC (symmetric) algorithm; the ring is published in JWKS and MUST use an asymmetric algorithm (RS256/RS384/RS512 or ES256/ES384/ES512).");
+            else if (current.Key is not null
+                && TrellisSigningKeyValidation.IsSupportedAsymmetricKey(current.Key)
+                && !TrellisSigningKeyValidation.IsAlgorithmSupportedForKey(current.Key, current.Algorithm))
+                failures.Add($"Current.Algorithm '{current.Algorithm}' is not usable with the Current.Key type ({current.Key.GetType().Name}); an RSA key requires an RSA algorithm (RS256/384/512 or PS256/384/512) and an ECDSA key requires an EC algorithm (ES256/384/512). Signing would fail at mint time and poison the last-known-good ring.");
         }
 
         if (ring.ValidationKeys is null)

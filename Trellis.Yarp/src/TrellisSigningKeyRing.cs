@@ -47,7 +47,18 @@ public sealed class TrellisSigningKeyRing
     /// public component of <see cref="Current"/>'s key (matched by <c>kid</c>). Every entry
     /// MUST be asymmetric with a unique, non-empty <c>kid</c>.
     /// </summary>
-    public required IReadOnlyList<SecurityKey> ValidationKeys { get; init; }
+    /// <remarks>
+    /// Defensively copied on assignment so the snapshot is structurally immutable: a provider that
+    /// keeps and later mutates the original collection cannot change a ring the pipeline has already
+    /// validated (the validating decorator short-circuits re-validation by reference).
+    /// </remarks>
+    public required IReadOnlyList<SecurityKey> ValidationKeys
+    {
+        get => _validationKeys;
+        init => _validationKeys = value is null ? [] : [.. value];
+    }
+
+    private readonly IReadOnlyList<SecurityKey> _validationKeys = [];
 
     /// <summary>
     /// Builds a ring from a single active signing credential plus zero or more retiring

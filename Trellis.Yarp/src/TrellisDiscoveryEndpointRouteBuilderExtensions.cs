@@ -85,13 +85,13 @@ public static class TrellisDiscoveryEndpointRouteBuilderExtensions
         var oidcEndpoint = endpoints.MapGet(oidc, (HttpContext context) =>
         {
             var options = context.RequestServices.GetRequiredService<IOptions<TrellisActorForwardingOptions>>().Value;
-            var ring = context.RequestServices.GetRequiredService<ITrellisSigningKeyProvider>().GetCurrentRing();
+            var ring = context.RequestServices.GetRequiredService<ValidatingTrellisSigningKeyProvider>().GetCurrentRing();
             return Results.Json(BuildDiscoveryDocument(options, ring, jwks), contentType: "application/json");
         }).AllowAnonymous();
 
         var jwksEndpoint = endpoints.MapGet(jwks, (HttpContext context) =>
         {
-            var ring = context.RequestServices.GetRequiredService<ITrellisSigningKeyProvider>().GetCurrentRing();
+            var ring = context.RequestServices.GetRequiredService<ValidatingTrellisSigningKeyProvider>().GetCurrentRing();
             return Results.Json(BuildJwks(ring), contentType: "application/json");
         }).AllowAnonymous();
 

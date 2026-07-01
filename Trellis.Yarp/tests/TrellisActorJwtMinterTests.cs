@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using global::Microsoft.IdentityModel.JsonWebTokens;
 using global::Microsoft.IdentityModel.Tokens;
 using global::Yarp.ReverseProxy.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 
@@ -456,7 +457,9 @@ public sealed class TrellisActorJwtMinterTests
             projectForbidden: projectForbidden,
             projectAttributes: projectAttributes,
             actorIdResolver: actorIdResolver));
-        var keyProvider = new StaticTrellisSigningKeyProvider(options);
+        var keyProvider = new ValidatingTrellisSigningKeyProvider(
+            new StaticTrellisSigningKeyProvider(options),
+            NullLogger<ValidatingTrellisSigningKeyProvider>.Instance);
         var minter = new TrellisActorJwtMinter(options, keyProvider, time);
         return (minter, options, time);
     }
@@ -508,8 +511,9 @@ public sealed class TrellisActorJwtMinterTests
     private static SigningCredentials NewRsaSigningCredentials(string kid) =>
         new(new RsaSecurityKey(RSA.Create(2048)) { KeyId = kid }, SecurityAlgorithms.RsaSha256);
 
-    private static StaticTrellisSigningKeyProvider NewKeyProvider() =>
-        new StaticTrellisSigningKeyProvider(Options.Create(NewValidOptions()));
+    private static ValidatingTrellisSigningKeyProvider NewKeyProvider() =>
+        new(new StaticTrellisSigningKeyProvider(Options.Create(NewValidOptions())),
+            NullLogger<ValidatingTrellisSigningKeyProvider>.Instance);
 
     private static Actor NewActor(
         string id = "user-42",

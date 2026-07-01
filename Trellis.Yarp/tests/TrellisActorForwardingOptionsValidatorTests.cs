@@ -156,6 +156,21 @@ public sealed class TrellisActorForwardingOptionsValidatorTests
     }
 
     [Fact]
+    public void Validate_SigningKeyAlgorithmMismatch_Fails()
+    {
+        // Structurally asymmetric + non-HMAC, but an RSA key can't sign with an EC algorithm — it
+        // would throw at mint time. Catch it at startup.
+        var rsa = new RsaSecurityKey(RSA.Create(2048)) { KeyId = "rsa-1" };
+        var credentials = new SigningCredentials(rsa, SecurityAlgorithms.EcdsaSha256);
+        var options = Valid(b => b.SigningCredentials = credentials);
+
+        var result = Validator.Validate(name: null, options);
+
+        result.Failed.Should().BeTrue();
+        result.FailureMessage.Should().Contain("not usable with");
+    }
+
+    [Fact]
     public void Validate_SigningKeyMissingKid_Fails()
     {
         var rsa = RSA.Create(2048);

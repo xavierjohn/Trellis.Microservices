@@ -44,6 +44,31 @@ internal static class TrellisSigningKeyValidation
         key is RsaSecurityKey or ECDsaSecurityKey;
 
     /// <summary>
+    /// True when <paramref name="algorithm"/> is a JWT SIGNATURE algorithm for <paramref name="key"/>'s
+    /// family AND the crypto provider can actually create a signer for the pair. The explicit
+    /// signing allow-list (RS*/PS* for RSA, ES* for ECDSA) is required because
+    /// <c>CryptoProviderFactory.IsSupportedAlgorithm</c> alone also accepts RSA ENCRYPTION / key-wrap
+    /// algorithms (e.g. RSA-OAEP), which are structurally "asymmetric + non-HMAC" yet throw at sign
+    /// time. Rejecting mismatches at validation keeps a bad rotation from poisoning the last-known-good
+    /// ring and 502-ing every request.
+    /// </summary>
+    public static bool IsAlgorithmSupportedForKey(SecurityKey key, string? algorithm)
+    {
+        if (string.IsNullOrEmpty(algorithm))
+            return false;
+
+        var isSignatureAlgorithmForKeyFamily = key switch
+        {
+            RsaSecurityKey => algorithm is SecurityAlgorithms.RsaSha256 or SecurityAlgorithms.RsaSha384 or SecurityAlgorithms.RsaSha512
+                or SecurityAlgorithms.RsaSsaPssSha256 or SecurityAlgorithms.RsaSsaPssSha384 or SecurityAlgorithms.RsaSsaPssSha512,
+            ECDsaSecurityKey => algorithm is SecurityAlgorithms.EcdsaSha256 or SecurityAlgorithms.EcdsaSha384 or SecurityAlgorithms.EcdsaSha512,
+            _ => false,
+        };
+
+        return isSignatureAlgorithmForKeyFamily && key.CryptoProviderFactory.IsSupportedAlgorithm(algorithm, key);
+    }
+
+    /// <summary>
     /// Renders the <c>kty</c> of a <see cref="JsonWebKey"/> for diagnostics (e.g.
     /// <c>, kty="oct"</c>); empty for non-JWK keys.
     /// </summary>

@@ -121,15 +121,15 @@ public static class TrellisActorForwardingServiceCollectionExtensions
 
         builder.Services.TryAddSingleton(TimeProvider.System);
 
-        // The consumer-facing ITrellisSigningKeyProvider MUST be the validating decorator so every
-        // ring — static default or dynamic custom — is re-validated fail-closed before the minter
-        // signs or the JWKS endpoint publishes it. RemoveAll + AddSingleton (NOT TryAddSingleton)
-        // guarantees the decorator wins even if a consumer pre-registered a raw
-        // ITrellisSigningKeyProvider directly, which would otherwise bypass validation. Custom
-        // providers MUST be supplied through the signingKeyProviderFactory overload (routed through
-        // the decorator here), never registered as ITrellisSigningKeyProvider.
-        builder.Services.RemoveAll<ITrellisSigningKeyProvider>();
-        builder.Services.AddSingleton<ITrellisSigningKeyProvider>(sp =>
+        // The minter and JWKS/discovery endpoints depend on the CONCRETE, internal
+        // ValidatingTrellisSigningKeyProvider — NOT the public ITrellisSigningKeyProvider interface —
+        // so the fail-closed validation can never be bypassed by a consumer registering their own
+        // ITrellisSigningKeyProvider in DI (a plausible mistake, since it is a public interface).
+        // Custom providers MUST be supplied through the signingKeyProviderFactory overload, which
+        // routes them through this decorator. RemoveAll keeps the "called twice" case last-wins,
+        // consistent with the UsesCustomSigningKeyProvider flag above.
+        builder.Services.RemoveAll<ValidatingTrellisSigningKeyProvider>();
+        builder.Services.AddSingleton(sp =>
             new ValidatingTrellisSigningKeyProvider(
                 innerProviderFactory(sp),
                 sp.GetRequiredService<ILogger<ValidatingTrellisSigningKeyProvider>>()));

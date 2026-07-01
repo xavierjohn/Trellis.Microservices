@@ -73,13 +73,13 @@ internal readonly record struct TrellisActorMintResult(
 internal sealed class TrellisActorJwtMinter
 {
     private readonly IOptions<TrellisActorForwardingOptions> _options;
-    private readonly ITrellisSigningKeyProvider _keyProvider;
+    private readonly ValidatingTrellisSigningKeyProvider _keyProvider;
     private readonly TimeProvider _timeProvider;
     private readonly JsonWebTokenHandler _handler;
 
     public TrellisActorJwtMinter(
         IOptions<TrellisActorForwardingOptions> options,
-        ITrellisSigningKeyProvider keyProvider,
+        ValidatingTrellisSigningKeyProvider keyProvider,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(options);

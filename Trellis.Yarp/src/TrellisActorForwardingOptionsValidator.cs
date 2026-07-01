@@ -124,6 +124,9 @@ internal sealed class TrellisActorForwardingOptionsValidator
 
         if (!IsSymmetric(credentials.Key) && !IsSupportedAsymmetricKey(credentials.Key))
             failures.Add($"{member}.Key is a {credentials.Key.GetType().Name}; v1 supports RsaSecurityKey and ECDsaSecurityKey. X509SecurityKey is rejected because the JWKS builder does not yet emit x5c/x5t. JsonWebKey wrappers are rejected because Microsoft.IdentityModel's JsonWebKeyConverter throws NotSupportedException for JsonWebKey input (JsonWebKey is the converter's OUTPUT format, not its input). The JWKS endpoint's defense-in-depth catch would SILENTLY SKIP the unsupported key — but the consequence is that the gateway's active signing key would then be ABSENT from the published JWKS, breaking ALL downstream JwtBearer token validation that uses Authority-based key discovery (the downstream resolves keys by kid from JWKS; missing kid = signature validation fails for every minted token). Unwrap to RsaSecurityKey via cert.GetRSAPrivateKey() (or ECDsaSecurityKey via cert.GetECDsaPrivateKey()) before passing it as the signing key — signing requires the PRIVATE key; using the public-key unwrap would pass validation but fail at runtime when minting.");
+        else if (!IsSymmetric(credentials.Key) && !IsSymmetricAlgorithm(credentials.Algorithm)
+            && !TrellisSigningKeyValidation.IsAlgorithmSupportedForKey(credentials.Key, credentials.Algorithm))
+            failures.Add($"{member}.Algorithm '{credentials.Algorithm}' is not usable with the {member}.Key type ({credentials.Key.GetType().Name}); an RSA key requires an RSA algorithm (RS256/384/512 or PS256/384/512) and an ECDSA key requires an EC algorithm (ES256/384/512). Signing would fail at mint time.");
     }
 
     private static void ValidatePreviousKey(SecurityKey? key, int index, List<string> failures)

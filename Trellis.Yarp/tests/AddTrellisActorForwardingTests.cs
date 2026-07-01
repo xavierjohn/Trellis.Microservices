@@ -127,12 +127,10 @@ public sealed class AddTrellisActorForwardingTests
         services.AddReverseProxy().AddTrellisActorForwarding(ConfigureValid);
 
         var sp = services.BuildServiceProvider();
-        var provider = sp.GetRequiredService<ITrellisSigningKeyProvider>();
+        var provider = sp.GetRequiredService<ValidatingTrellisSigningKeyProvider>();
 
-        provider.Should().BeOfType<ValidatingTrellisSigningKeyProvider>(
-            "the consumer-facing provider must always be the fail-closed validating decorator");
         provider.GetCurrentRing().Current.Key.KeyId.Should().Be("active-1",
-            "the default provider projects the static SigningCredentials into the ring");
+            "the default provider projects the static SigningCredentials into the ring, wrapped by the fail-closed validating decorator");
     }
 
     [Fact]
@@ -146,11 +144,10 @@ public sealed class AddTrellisActorForwardingTests
             _ => new StubSigningKeyProvider(NewRing(customKid)));
 
         var sp = services.BuildServiceProvider();
-        var provider = sp.GetRequiredService<ITrellisSigningKeyProvider>();
+        var provider = sp.GetRequiredService<ValidatingTrellisSigningKeyProvider>();
 
-        provider.Should().BeOfType<ValidatingTrellisSigningKeyProvider>(
-            "custom providers must be wrapped by the validating decorator, never resolved raw");
-        provider.GetCurrentRing().Current.Key.KeyId.Should().Be(customKid);
+        provider.GetCurrentRing().Current.Key.KeyId.Should().Be(customKid,
+            "custom providers are wrapped by the validating decorator and drive the ring");
     }
 
     [Fact]
@@ -164,21 +161,38 @@ public sealed class AddTrellisActorForwardingTests
     }
 
     [Fact]
-    public void AddTrellisActorForwarding_PreRegisteredRawProvider_IsOverriddenByValidatingDecorator()
+    public void AddTrellisActorForwarding_PreRegisteredRawInterfaceProvider_DoesNotAffectValidatingDecorator()
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        // A consumer wrongly registers a raw provider directly instead of using the overload.
+        // A consumer (wrongly) registers a raw provider on the public interface instead of using the
+        // overload. The minter/JWKS depend on the concrete ValidatingTrellisSigningKeyProvider, so this
+        // raw registration is simply never used — fail-closed validation cannot be bypassed.
         services.AddSingleton<ITrellisSigningKeyProvider>(new StubSigningKeyProvider(NewRing("raw-bypass")));
         services.AddReverseProxy().AddTrellisActorForwarding(ConfigureValid);
 
         var sp = services.BuildServiceProvider();
-        var provider = sp.GetRequiredService<ITrellisSigningKeyProvider>();
+        var effective = sp.GetRequiredService<ValidatingTrellisSigningKeyProvider>();
 
-        provider.Should().BeOfType<ValidatingTrellisSigningKeyProvider>(
-            "a pre-registered raw provider must NOT bypass the fail-closed validating decorator");
-        provider.GetCurrentRing().Current.Key.KeyId.Should().Be("active-1",
-            "the decorator wraps the validated static default, not the consumer's unvalidated raw registration");
+        effective.GetCurrentRing().Current.Key.KeyId.Should().Be("active-1",
+            "the concrete validating decorator wraps the validated static default, not the consumer's raw registration");
+    }
+
+    [Fact]
+    public void AddTrellisActorForwarding_LaterRawInterfaceProvider_DoesNotBypassValidatingDecorator()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddReverseProxy().AddTrellisActorForwarding(ConfigureValid);
+        // Consumer registers a raw provider AFTER the call (last-wins for the public interface). It
+        // must STILL not affect the minter/JWKS, which resolve the concrete validating decorator.
+        services.AddSingleton<ITrellisSigningKeyProvider>(new StubSigningKeyProvider(NewRing("late-raw")));
+
+        var sp = services.BuildServiceProvider();
+        var effective = sp.GetRequiredService<ValidatingTrellisSigningKeyProvider>();
+
+        effective.GetCurrentRing().Current.Key.KeyId.Should().Be("active-1",
+            "a later raw ITrellisSigningKeyProvider registration must not bypass fail-closed validation");
     }
 
     [Fact]
@@ -200,7 +214,7 @@ public sealed class AddTrellisActorForwardingTests
         // ValidateOnStart must NOT require the static SigningCredentials on the custom-provider path.
         var act = () => sp.GetRequiredService<IOptions<TrellisActorForwardingOptions>>().Value;
         act.Should().NotThrow();
-        sp.GetRequiredService<ITrellisSigningKeyProvider>().GetCurrentRing().Current.Key.KeyId.Should().Be("vault-1");
+        sp.GetRequiredService<ValidatingTrellisSigningKeyProvider>().GetCurrentRing().Current.Key.KeyId.Should().Be("vault-1");
     }
 
     [Fact]

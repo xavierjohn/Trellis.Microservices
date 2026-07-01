@@ -39,6 +39,19 @@ public sealed class TrellisSigningKeyProviderTests
             "the active key's public component is published first, then each previous key — matching the pre-provider JWKS ordering");
     }
 
+    [Fact]
+    public void Ring_ValidationKeys_AreDefensivelyCopied_SoLaterSourceMutationDoesNotChangeSnapshot()
+    {
+        var current = NewRsaCredentials("k1");
+        var mutableSource = new List<SecurityKey> { current.Key };
+        var ring = new TrellisSigningKeyRing { Current = current, ValidationKeys = mutableSource };
+
+        mutableSource.Add(NewRsaKey("k2")); // mutate the ORIGINAL list after constructing the ring
+
+        ring.ValidationKeys.Select(k => k.KeyId).Should().Equal(["k1"],
+            "the ring must defensively copy ValidationKeys so post-construction mutation of the source list cannot change a snapshot the pipeline may have already validated");
+    }
+
     // === TrellisSigningKeyRingValidator ===
 
     [Fact]
@@ -172,6 +185,38 @@ public sealed class TrellisSigningKeyProviderTests
     }
 
     [Fact]
+    public void Validate_CurrentKeyAlgorithmMismatch_Fails()
+    {
+        // RSA key paired with an EC algorithm is structurally "asymmetric + non-HMAC" but throws at
+        // sign time; catch it at validation so it can't poison the last-known-good ring.
+        var rsaKey = NewRsaKey("k1");
+        var ring = new TrellisSigningKeyRing
+        {
+            Current = new SigningCredentials(rsaKey, SecurityAlgorithms.EcdsaSha256),
+            ValidationKeys = [rsaKey],
+        };
+
+        TrellisSigningKeyRingValidator.Validate(ring).Should()
+            .Contain(f => f.Contains("not usable with the Current.Key type", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_CurrentKeyWithNonSigningRsaAlgorithm_Fails()
+    {
+        // RSA-OAEP is an RSA ENCRYPTION algorithm, not a JWT signature algorithm; it is structurally
+        // asymmetric + non-HMAC but throws at sign time. Must be rejected.
+        var rsaKey = NewRsaKey("k1");
+        var ring = new TrellisSigningKeyRing
+        {
+            Current = new SigningCredentials(rsaKey, SecurityAlgorithms.RsaOAEP),
+            ValidationKeys = [rsaKey],
+        };
+
+        TrellisSigningKeyRingValidator.Validate(ring).Should()
+            .Contain(f => f.Contains("not usable with the Current.Key type", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Validate_NullRing_Throws()
     {
         var act = () => TrellisSigningKeyRingValidator.Validate(null!);
@@ -264,7 +309,7 @@ public sealed class TrellisSigningKeyProviderTests
         // Options carry kid "options-1"; the provider's ring carries kid "provider-1". The minter
         // MUST sign with the provider's current key — that's what makes runtime rotation take effect.
         var options = NewOptions("options-1");
-        var provider = new MutableSigningKeyProvider(NewRing("provider-1"));
+        var provider = NewValidating(new MutableSigningKeyProvider(NewRing("provider-1")));
         var minter = new TrellisActorJwtMinter(options, provider, NewClock());
 
         var result = minter.MintFor(NewActor(), NewCluster("incidents"));
