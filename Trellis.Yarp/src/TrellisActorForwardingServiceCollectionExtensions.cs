@@ -4,6 +4,7 @@ using System;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 /// <summary>
@@ -59,16 +60,80 @@ public static class TrellisActorForwardingServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(configure);
 
-        builder.Services
+        return AddCore(builder, configure, static sp =>
+            new StaticTrellisSigningKeyProvider(
+                sp.GetRequiredService<IOptions<TrellisActorForwardingOptions>>()),
+            usesCustomProvider: false);
+    }
+
+    /// <summary>
+    /// Registers the Trellis actor-forwarding transform pipeline with a custom
+    /// <see cref="ITrellisSigningKeyProvider"/>, enabling runtime signing-key rotation without a
+    /// gateway redeploy (e.g. sourcing keys from a vault / KMS refreshed on a background cadence).
+    /// The provider is wrapped in fail-closed validation: every ring it returns is re-checked
+    /// (asymmetric-only, unique non-empty <c>kid</c>s, current key published) before the minter
+    /// signs or the JWKS endpoint publishes it, and an invalid ring falls back to the last
+    /// known-good rather than taking the gateway down.
+    /// </summary>
+    /// <param name="builder">The YARP reverse-proxy builder.</param>
+    /// <param name="configure">Configures the forwarding options (issuer, audience, lifetime,
+    /// projections, public base URL). The static <c>SigningCredentials</c> / <c>PreviousSigningKeys</c>
+    /// on the options are ignored when a custom provider is supplied — the provider is the source
+    /// of truth for the signing-key ring.</param>
+    /// <param name="signingKeyProviderFactory">Factory that resolves the custom signing-key
+    /// provider from the service provider (typically a singleton that caches a ring refreshed off
+    /// the hot path). MUST NOT be null.</param>
+    /// <returns>The same builder for chaining.</returns>
+    public static IReverseProxyBuilder AddTrellisActorForwarding(
+        this IReverseProxyBuilder builder,
+        Action<TrellisActorForwardingOptions> configure,
+        Func<IServiceProvider, ITrellisSigningKeyProvider> signingKeyProviderFactory)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(configure);
+        ArgumentNullException.ThrowIfNull(signingKeyProviderFactory);
+
+        return AddCore(builder, configure, signingKeyProviderFactory, usesCustomProvider: true);
+    }
+
+    private static IReverseProxyBuilder AddCore(
+        IReverseProxyBuilder builder,
+        Action<TrellisActorForwardingOptions> configure,
+        Func<IServiceProvider, ITrellisSigningKeyProvider> innerProviderFactory,
+        bool usesCustomProvider)
+    {
+        var optionsBuilder = builder.Services
             .AddOptions<TrellisActorForwardingOptions>()
-            .Configure(configure)
-            .ValidateOnStart();
+            .Configure(configure);
+
+        // A custom signing-key provider owns the ring (validated at runtime by the decorator), so
+        // startup validation must NOT require the static SigningCredentials / PreviousSigningKeys —
+        // they are ignored on that path. Set the flag UNCONDITIONALLY (not only when true) so it
+        // follows the same last-call-wins semantics as the RemoveAll/AddSingleton provider
+        // registration below: a later static-overload call re-enables static-key validation.
+        optionsBuilder.Configure(o => o.UsesCustomSigningKeyProvider = usesCustomProvider);
+
+        optionsBuilder.ValidateOnStart();
 
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<
             IValidateOptions<TrellisActorForwardingOptions>,
             TrellisActorForwardingOptionsValidator>());
 
         builder.Services.TryAddSingleton(TimeProvider.System);
+
+        // The minter and JWKS/discovery endpoints depend on the CONCRETE, internal
+        // ValidatingTrellisSigningKeyProvider — NOT the public ITrellisSigningKeyProvider interface —
+        // so the fail-closed validation can never be bypassed by a consumer registering their own
+        // ITrellisSigningKeyProvider in DI (a plausible mistake, since it is a public interface).
+        // Custom providers MUST be supplied through the signingKeyProviderFactory overload, which
+        // routes them through this decorator. RemoveAll keeps the "called twice" case last-wins,
+        // consistent with the UsesCustomSigningKeyProvider flag above.
+        builder.Services.RemoveAll<ValidatingTrellisSigningKeyProvider>();
+        builder.Services.AddSingleton(sp =>
+            new ValidatingTrellisSigningKeyProvider(
+                innerProviderFactory(sp),
+                sp.GetRequiredService<ILogger<ValidatingTrellisSigningKeyProvider>>()));
+
         builder.Services.TryAddSingleton<TrellisActorJwtMinter>();
 
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<
