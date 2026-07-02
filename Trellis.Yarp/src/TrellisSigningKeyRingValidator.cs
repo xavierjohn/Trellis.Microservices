@@ -15,12 +15,13 @@ using global::Microsoft.IdentityModel.Tokens;
 /// or publish.
 /// </summary>
 /// <remarks>
-/// The current signer's key/algorithm compatibility IS enforced (an RSA key with an EC algorithm,
-/// or vice-versa, is rejected before it can poison the last-known-good ring). Algorithm-family
-/// uniformity across the PUBLISHED ring (every <see cref="TrellisSigningKeyRing.ValidationKeys"/>
-/// entry sharing the active family) is not separately enforced — the JWKS builder normalizes every
-/// key's <c>alg</c> to the active <see cref="TrellisSigningKeyRing.Current"/> algorithm and v1
-/// assumes rotation stays within a single algorithm family.
+/// Algorithm-family consistency is enforced end-to-end: the current signer's key must match its
+/// algorithm (an RSA key with an EC algorithm, or vice-versa, is rejected before it can poison the
+/// last-known-good ring), AND every published <see cref="TrellisSigningKeyRing.ValidationKeys"/>
+/// entry must be usable with the active <see cref="TrellisSigningKeyRing.Current"/> algorithm.
+/// The latter matters because the JWKS builder normalizes every published key's <c>alg</c> to the
+/// active algorithm, so a mixed-family ring would emit a mislabeled JWK and break downstream
+/// validation for tokens minted under the off-family key.
 /// </remarks>
 internal static class TrellisSigningKeyRingValidator
 {
@@ -60,12 +61,23 @@ internal static class TrellisSigningKeyRingValidator
         }
 
         var seenKids = new HashSet<string>(StringComparer.Ordinal);
+        var activeAlgorithm = current?.Algorithm;
         for (var i = 0; i < ring.ValidationKeys.Count; i++)
         {
             var key = ring.ValidationKeys[i];
             ValidateKey(key, $"ValidationKeys[{i}]", failures);
             if (key?.KeyId is { Length: > 0 } kid && !seenKids.Add(kid))
                 failures.Add($"ValidationKeys[{i}] uses kid '{kid}' which collides with another key in the ring; every published kid MUST be unique so JWKS lookup and audit correlation stay unambiguous.");
+
+            // Single-family invariant: BuildJwks normalizes EVERY published key's `alg` to the active
+            // Current.Algorithm. A published key from a different algorithm family (e.g. a retiring EC
+            // key while Current is RSA) would therefore be emitted with a MISLABELED `alg`, and any
+            // in-flight token minted under it would fail downstream validation. Reject it loudly
+            // rather than silently publishing a broken JWK.
+            if (key is not null && activeAlgorithm is { Length: > 0 } alg
+                && TrellisSigningKeyValidation.IsSupportedAsymmetricKey(key)
+                && !TrellisSigningKeyValidation.IsAlgorithmSupportedForKey(key, alg))
+                failures.Add($"ValidationKeys[{i}] ({key.GetType().Name}) is not compatible with the active algorithm '{alg}'; JWKS normalizes every published key's alg to the active algorithm, so a key from a different family would be published with a mislabeled alg and fail downstream validation. Every key in the ring MUST share the current key's algorithm family.");
         }
 
         // Publication invariant: the current signer's kid MUST be published exactly once, AND the

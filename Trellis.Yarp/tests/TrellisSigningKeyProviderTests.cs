@@ -217,6 +217,24 @@ public sealed class TrellisSigningKeyProviderTests
     }
 
     [Fact]
+    public void Validate_MixedAlgorithmFamilyInValidationKeys_Fails()
+    {
+        // Current is RSA (RS256); a retiring EC key in the published set would be emitted by JWKS with
+        // a mislabeled `alg` (normalized to the active RS256), breaking downstream validation for any
+        // token minted under it. Reject the mixed-family ring loudly.
+        var current = NewRsaCredentials("rsa-current");
+        var retiringEc = new ECDsaSecurityKey(ECDsa.Create(ECCurve.NamedCurves.nistP256)) { KeyId = "ec-retiring" };
+        var ring = new TrellisSigningKeyRing
+        {
+            Current = current,
+            ValidationKeys = [current.Key, retiringEc],
+        };
+
+        TrellisSigningKeyRingValidator.Validate(ring).Should()
+            .Contain(f => f.Contains("not compatible with the active algorithm", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Validate_NullRing_Throws()
     {
         var act = () => TrellisSigningKeyRingValidator.Validate(null!);
