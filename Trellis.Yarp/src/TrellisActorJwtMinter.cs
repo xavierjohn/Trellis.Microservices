@@ -62,26 +62,31 @@ internal readonly record struct TrellisActorMintResult(
 ///   <item><description>One claim per <see cref="TrellisActorForwardingOptions.ProjectAttributes"/> entry, using the entry key as the claim name and the entry value as the (single-valued) claim value.</description></item>
 /// </list>
 /// <para>
-/// The JWT header carries the <c>kid</c> taken from
-/// <see cref="TrellisActorForwardingOptions.SigningCredentials"/>'
-/// <see cref="SecurityKey.KeyId"/> (startup-validated non-empty) so downstream consumers
-/// (<c>JwtBearerHandler</c> with JWKS discovery, or the air-gapped static-key-ring
-/// profile) can resolve the right key during rotation.
+/// The signing credential is resolved per mint from
+/// <see cref="ITrellisSigningKeyProvider.GetCurrentRing"/> (<see cref="TrellisSigningKeyRing.Current"/>),
+/// so a runtime key rotation is picked up without restarting the minter. The JWT header carries
+/// the <c>kid</c> taken from that credential's <see cref="SecurityKey.KeyId"/> (validated
+/// non-empty) so downstream consumers (<c>JwtBearerHandler</c> with JWKS discovery, or the
+/// air-gapped static-key-ring profile) can resolve the right key during rotation.
 /// </para>
 /// </remarks>
 internal sealed class TrellisActorJwtMinter
 {
     private readonly IOptions<TrellisActorForwardingOptions> _options;
+    private readonly ValidatingTrellisSigningKeyProvider _keyProvider;
     private readonly TimeProvider _timeProvider;
     private readonly JsonWebTokenHandler _handler;
 
     public TrellisActorJwtMinter(
         IOptions<TrellisActorForwardingOptions> options,
+        ValidatingTrellisSigningKeyProvider keyProvider,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(keyProvider);
         ArgumentNullException.ThrowIfNull(timeProvider);
         _options = options;
+        _keyProvider = keyProvider;
         _timeProvider = timeProvider;
         _handler = new JsonWebTokenHandler { SetDefaultTimesOnTokenCreation = false };
     }
@@ -100,6 +105,7 @@ internal sealed class TrellisActorJwtMinter
         ArgumentNullException.ThrowIfNull(cluster);
 
         var options = _options.Value;
+        var signingCredentials = _keyProvider.GetCurrentRing().Current;
 
         var audience = options.AudiencePerCluster(cluster);
         var projectedPermissions = options.ProjectPermissionsFor(cluster, actor.Permissions);
@@ -126,7 +132,7 @@ internal sealed class TrellisActorJwtMinter
             IssuedAt = issuedAt,
             NotBefore = issuedAt,
             Expires = expiresAt,
-            SigningCredentials = options.SigningCredentials,
+            SigningCredentials = signingCredentials,
         };
 
         var compactJws = _handler.CreateToken(descriptor);
@@ -137,7 +143,7 @@ internal sealed class TrellisActorJwtMinter
             Issuer: options.Issuer,
             Audience: audience,
             ExpiresAt: new DateTimeOffset(expiresAt, TimeSpan.Zero),
-            Kid: options.SigningCredentials.Key.KeyId,
+            Kid: signingCredentials.Key.KeyId,
             PermissionsCount: projectedPermissions.Count,
             ForbiddenPermissionsCount: projectedForbidden.Count);
     }

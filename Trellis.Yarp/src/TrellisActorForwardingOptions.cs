@@ -63,18 +63,26 @@ public sealed class TrellisActorForwardingOptions
     public required string Issuer { get; set; }
 
     /// <summary>
-    /// Asymmetric signing credential used to sign every minted JWT. Required.
+    /// Asymmetric signing credential used to sign every minted JWT on the static default path.
     /// <see cref="SigningCredentials.Key"/> MUST be asymmetric (typically
     /// <see cref="RsaSecurityKey"/> or <see cref="ECDsaSecurityKey"/>) and MUST have a
     /// non-empty <see cref="SecurityKey.KeyId"/> (the <c>kid</c>). Startup validation
     /// rejects symmetric keys, null keys, and missing <c>kid</c>.
     /// </summary>
     /// <remarks>
-    /// During key rotation, populate <see cref="PreviousSigningKeys"/> with the
-    /// outgoing key(s) so they remain trusted in the published JWKS for the duration of
-    /// the rotation overlap window (see the cookbook's rotation runbook).
+    /// <para>
+    /// Required when using the single-parameter <c>AddTrellisActorForwarding(configure)</c> overload.
+    /// <b>Ignored (and not required) when a custom <see cref="ITrellisSigningKeyProvider"/> is supplied</b>
+    /// via the <c>AddTrellisActorForwarding(configure, signingKeyProviderFactory)</c> overload — the
+    /// provider owns the signing-key ring and is validated at runtime.
+    /// </para>
+    /// <para>
+    /// During key rotation on the static path, populate <see cref="PreviousSigningKeys"/> with the
+    /// outgoing key(s) so they remain trusted in the published JWKS for the duration of the rotation
+    /// overlap window (see the cookbook's rotation runbook).
+    /// </para>
     /// </remarks>
-    public required SigningCredentials SigningCredentials { get; set; }
+    public SigningCredentials SigningCredentials { get; set; } = null!;
 
     /// <summary>
     /// Previous-generation signing keys still trusted during a rotation overlap window.
@@ -162,4 +170,13 @@ public sealed class TrellisActorForwardingOptions
     /// effective replay window stays under ~6 minutes for the default lifetime.
     /// </summary>
     public TimeSpan Lifetime { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Set internally by the custom-provider <c>AddTrellisActorForwarding(configure, signingKeyProviderFactory)</c>
+    /// overload. When <c>true</c>, an <see cref="ITrellisSigningKeyProvider"/> owns the signing-key
+    /// ring and is validated at runtime, so startup validation skips
+    /// <see cref="SigningCredentials"/> / <see cref="PreviousSigningKeys"/> (they are ignored on that
+    /// path). Not a consumer-configurable option.
+    /// </summary>
+    internal bool UsesCustomSigningKeyProvider { get; set; }
 }
