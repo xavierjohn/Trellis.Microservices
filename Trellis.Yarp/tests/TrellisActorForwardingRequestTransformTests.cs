@@ -15,6 +15,7 @@ using global::Yarp.ReverseProxy.Transforms.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 
@@ -190,6 +191,10 @@ public sealed class TrellisActorForwardingRequestTransformTests
         var services = new ServiceCollection();
         services.AddSingleton<IActorProvider>(new StubActorProvider(actor));
         services.AddSingleton(Options.Create(NewValidOptions()));
+        services.AddSingleton(sp =>
+            new ValidatingTrellisSigningKeyProvider(
+                new StaticTrellisSigningKeyProvider(sp.GetRequiredService<IOptions<TrellisActorForwardingOptions>>()),
+                NullLogger<ValidatingTrellisSigningKeyProvider>.Instance));
         services.AddSingleton<TimeProvider>(new FakeTimeProvider(new DateTimeOffset(2026, 1, 15, 12, 0, 0, TimeSpan.Zero)));
         var log = new CapturingLogger();
         services.AddSingleton<ILogger<TrellisActorJwtMinter>>(log);

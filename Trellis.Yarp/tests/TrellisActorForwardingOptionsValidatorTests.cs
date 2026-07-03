@@ -156,6 +156,21 @@ public sealed class TrellisActorForwardingOptionsValidatorTests
     }
 
     [Fact]
+    public void Validate_SigningKeyAlgorithmMismatch_Fails()
+    {
+        // Structurally asymmetric + non-HMAC, but an RSA key can't sign with an EC algorithm — it
+        // would throw at mint time. Catch it at startup.
+        var rsa = new RsaSecurityKey(RSA.Create(2048)) { KeyId = "rsa-1" };
+        var credentials = new SigningCredentials(rsa, SecurityAlgorithms.EcdsaSha256);
+        var options = Valid(b => b.SigningCredentials = credentials);
+
+        var result = Validator.Validate(name: null, options);
+
+        result.Failed.Should().BeTrue();
+        result.FailureMessage.Should().Contain("not usable with");
+    }
+
+    [Fact]
     public void Validate_SigningKeyMissingKid_Fails()
     {
         var rsa = RSA.Create(2048);
@@ -386,6 +401,41 @@ public sealed class TrellisActorForwardingOptionsValidatorTests
         result.FailureMessage.Should().Contain("symmetric");
         result.FailureMessage.Should().Contain(nameof(TrellisActorForwardingOptions.Lifetime));
         result.FailureMessage.Should().Contain(nameof(TrellisActorForwardingOptions.ActorIdResolver));
+    }
+
+    [Fact]
+    public void Validate_CustomSigningKeyProvider_SkipsStaticSigningCredentialValidation()
+    {
+        // When a custom ITrellisSigningKeyProvider owns the ring, startup validation must not require
+        // the static SigningCredentials (they are ignored and validated at runtime instead).
+        var options = new TrellisActorForwardingOptions
+        {
+            Issuer = "https://gateway.internal",
+            PublicBaseUrl = new Uri("https://gateway.internal", UriKind.Absolute),
+            UsesCustomSigningKeyProvider = true,
+            // No SigningCredentials, no PreviousSigningKeys — provider-owned.
+        };
+
+        var result = Validator.Validate(name: null, options);
+
+        result.Succeeded.Should().BeTrue(BecauseOf(result));
+    }
+
+    [Fact]
+    public void Validate_CustomSigningKeyProvider_StillValidatesNonKeyOptions()
+    {
+        // The custom-provider skip is ONLY for the signing keys; issuer / URL / lifetime are still required.
+        var options = new TrellisActorForwardingOptions
+        {
+            Issuer = "",
+            PublicBaseUrl = new Uri("https://gateway.internal", UriKind.Absolute),
+            UsesCustomSigningKeyProvider = true,
+        };
+
+        var result = Validator.Validate(name: null, options);
+
+        result.Failed.Should().BeTrue();
+        result.FailureMessage.Should().Contain(nameof(TrellisActorForwardingOptions.Issuer));
     }
 
     // === Fixtures ===

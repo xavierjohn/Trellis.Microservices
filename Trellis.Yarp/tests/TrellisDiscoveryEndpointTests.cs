@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 /// <summary>
@@ -238,6 +239,10 @@ public sealed class TrellisDiscoveryEndpointTests
                 {
                     s.AddRouting();
                     s.AddSingleton(Options.Create(NewValidOptions()));
+                    s.AddSingleton(sp =>
+                        new ValidatingTrellisSigningKeyProvider(
+                            new StaticTrellisSigningKeyProvider(sp.GetRequiredService<IOptions<TrellisActorForwardingOptions>>()),
+                            NullLogger<ValidatingTrellisSigningKeyProvider>.Instance));
                 });
                 webHost.Configure(app =>
                 {
@@ -348,7 +353,7 @@ public sealed class TrellisDiscoveryEndpointTests
     [Fact]
     public void BuildJwks_NullOptions_Throws()
     {
-        var act = () => TrellisDiscoveryEndpointRouteBuilderExtensions.BuildJwks(null!);
+        var act = () => TrellisDiscoveryEndpointRouteBuilderExtensions.BuildJwks((TrellisActorForwardingOptions)null!);
         act.Should().Throw<ArgumentNullException>();
     }
 
@@ -379,6 +384,10 @@ public sealed class TrellisDiscoveryEndpointTests
                 {
                     services.AddRouting();
                     services.AddSingleton(Options.Create(NewValidOptions()));
+                    services.AddSingleton(sp =>
+                        new ValidatingTrellisSigningKeyProvider(
+                            new StaticTrellisSigningKeyProvider(sp.GetRequiredService<IOptions<TrellisActorForwardingOptions>>()),
+                            NullLogger<ValidatingTrellisSigningKeyProvider>.Instance));
                 });
                 webHost.Configure(app =>
                 {

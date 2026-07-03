@@ -26,7 +26,7 @@ using Trellis.Authorization;
 /// minted Actor / JWT contract — a hard-to-debug authorization regression. Consumers
 /// using <c>AddTrellis(o =&gt; o.UseClaimsActorProvider(...))</c> get this protection
 /// from <c>TrellisServiceBuilder</c>'s single-slot policy, but consumers calling
-/// <see cref="TrellisActorForwardingServiceCollectionExtensions.AddTrellisActorForwarding"/>
+/// <see cref="TrellisActorForwardingServiceCollectionExtensions.AddTrellisActorForwarding(Microsoft.Extensions.DependencyInjection.IReverseProxyBuilder, System.Action{TrellisActorForwardingOptions})"/>
 /// directly bypass that gate. This validator restores the invariant for that path.
 /// </remarks>
 internal sealed class TrellisActorForwardingRegistrationValidator(IServiceProvider rootServices)

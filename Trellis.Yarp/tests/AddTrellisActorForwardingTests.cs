@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 /// <summary>
-/// Tests for <see cref="TrellisActorForwardingServiceCollectionExtensions.AddTrellisActorForwarding"/>.
+/// Tests for <see cref="TrellisActorForwardingServiceCollectionExtensions.AddTrellisActorForwarding(Microsoft.Extensions.DependencyInjection.IReverseProxyBuilder, System.Action{TrellisActorForwardingOptions})"/>.
 /// Asserts the service-collection wiring (options binding, validator registration,
 /// minter singleton, transform provider) and the ValidateOnStart contract.
 /// </summary>
@@ -119,6 +119,127 @@ public sealed class AddTrellisActorForwardingTests
             "the minter holds the singleton JsonWebTokenHandler and options instance — no per-request allocation");
     }
 
+    [Fact]
+    public void AddTrellisActorForwarding_RegistersValidatingSigningKeyProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddReverseProxy().AddTrellisActorForwarding(ConfigureValid);
+
+        var sp = services.BuildServiceProvider();
+        var provider = sp.GetRequiredService<ValidatingTrellisSigningKeyProvider>();
+
+        provider.GetCurrentRing().Current.Key.KeyId.Should().Be("active-1",
+            "the default provider projects the static SigningCredentials into the ring, wrapped by the fail-closed validating decorator");
+    }
+
+    [Fact]
+    public void AddTrellisActorForwarding_CustomProviderOverload_WrapsAndUsesTheProvider()
+    {
+        const string customKid = "vault-key-7";
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddReverseProxy().AddTrellisActorForwarding(
+            ConfigureValid,
+            _ => new StubSigningKeyProvider(NewRing(customKid)));
+
+        var sp = services.BuildServiceProvider();
+        var provider = sp.GetRequiredService<ValidatingTrellisSigningKeyProvider>();
+
+        provider.GetCurrentRing().Current.Key.KeyId.Should().Be(customKid,
+            "custom providers are wrapped by the validating decorator and drive the ring");
+    }
+
+    [Fact]
+    public void AddTrellisActorForwarding_NullSigningKeyProviderFactory_Throws()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var builder = services.AddReverseProxy();
+        var act = () => builder.AddTrellisActorForwarding(ConfigureValid, signingKeyProviderFactory: null!);
+        act.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public void AddTrellisActorForwarding_PreRegisteredRawInterfaceProvider_DoesNotAffectValidatingDecorator()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        // A consumer (wrongly) registers a raw provider on the public interface instead of using the
+        // overload. The minter/JWKS depend on the concrete ValidatingTrellisSigningKeyProvider, so this
+        // raw registration is simply never used — fail-closed validation cannot be bypassed.
+        services.AddSingleton<ITrellisSigningKeyProvider>(new StubSigningKeyProvider(NewRing("raw-bypass")));
+        services.AddReverseProxy().AddTrellisActorForwarding(ConfigureValid);
+
+        var sp = services.BuildServiceProvider();
+        var effective = sp.GetRequiredService<ValidatingTrellisSigningKeyProvider>();
+
+        effective.GetCurrentRing().Current.Key.KeyId.Should().Be("active-1",
+            "the concrete validating decorator wraps the validated static default, not the consumer's raw registration");
+    }
+
+    [Fact]
+    public void AddTrellisActorForwarding_LaterRawInterfaceProvider_DoesNotBypassValidatingDecorator()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddReverseProxy().AddTrellisActorForwarding(ConfigureValid);
+        // Consumer registers a raw provider AFTER the call (last-wins for the public interface). It
+        // must STILL not affect the minter/JWKS, which resolve the concrete validating decorator.
+        services.AddSingleton<ITrellisSigningKeyProvider>(new StubSigningKeyProvider(NewRing("late-raw")));
+
+        var sp = services.BuildServiceProvider();
+        var effective = sp.GetRequiredService<ValidatingTrellisSigningKeyProvider>();
+
+        effective.GetCurrentRing().Current.Key.KeyId.Should().Be("active-1",
+            "a later raw ITrellisSigningKeyProvider registration must not bypass fail-closed validation");
+    }
+
+    [Fact]
+    public void AddTrellisActorForwarding_CustomProvider_StartsWithoutStaticSigningCredentials()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddReverseProxy().AddTrellisActorForwarding(
+            configure: o =>
+            {
+                o.Issuer = "https://gateway.internal";
+                o.PublicBaseUrl = new Uri("https://gateway.internal", UriKind.Absolute);
+                // Intentionally no SigningCredentials — the custom provider owns the ring.
+            },
+            signingKeyProviderFactory: _ => new StubSigningKeyProvider(NewRing("vault-1")));
+
+        var sp = services.BuildServiceProvider();
+
+        // ValidateOnStart must NOT require the static SigningCredentials on the custom-provider path.
+        var act = () => sp.GetRequiredService<IOptions<TrellisActorForwardingOptions>>().Value;
+        act.Should().NotThrow();
+        sp.GetRequiredService<ValidatingTrellisSigningKeyProvider>().GetCurrentRing().Current.Key.KeyId.Should().Be("vault-1");
+    }
+
+    [Fact]
+    public void AddTrellisActorForwarding_CustomThenStaticOverload_ReEnablesStaticKeyValidationFailClosed()
+    {
+        // Calling the custom overload then the static overload: the resolved provider becomes the
+        // static decorator (last-wins), so the UsesCustomSigningKeyProvider flag MUST reset to false
+        // and startup validation must again require the static SigningCredentials — fail-closed.
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var yarp = services.AddReverseProxy();
+        yarp.AddTrellisActorForwarding(
+            o => { o.Issuer = "https://gateway.internal"; o.PublicBaseUrl = new Uri("https://gateway.internal", UriKind.Absolute); },
+            _ => new StubSigningKeyProvider(NewRing("vault-1")));
+        yarp.AddTrellisActorForwarding(
+            o => { o.Issuer = "https://gateway.internal"; o.PublicBaseUrl = new Uri("https://gateway.internal", UriKind.Absolute); });
+
+        var sp = services.BuildServiceProvider();
+        var act = () => sp.GetRequiredService<IOptions<TrellisActorForwardingOptions>>().Value;
+
+        act.Should().Throw<OptionsValidationException>()
+           .WithMessage("*SigningCredentials*",
+               "the static overload must reset the custom-provider flag so missing static credentials fail at startup");
+    }
+
     // === Fixtures ===
 
     private static void ConfigureValid(TrellisActorForwardingOptions o)
@@ -130,6 +251,14 @@ public sealed class AddTrellisActorForwardingTests
 
     private static SigningCredentials NewRsaSigningCredentials(string kid) =>
         new(new RsaSecurityKey(RSA.Create(2048)) { KeyId = kid }, SecurityAlgorithms.RsaSha256);
+
+    private static TrellisSigningKeyRing NewRing(string kid) =>
+        TrellisSigningKeyRing.FromActiveAndPrevious(NewRsaSigningCredentials(kid), []);
+
+    private sealed class StubSigningKeyProvider(TrellisSigningKeyRing ring) : ITrellisSigningKeyProvider
+    {
+        public TrellisSigningKeyRing GetCurrentRing() => ring;
+    }
 
     private sealed class FakeFixedTimeProvider : TimeProvider
     {
