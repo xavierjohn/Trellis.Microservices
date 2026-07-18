@@ -39,7 +39,7 @@
     <!-- OpenTelemetry core (Exporter/Extensions.Hosting) tracks the 1.16.x line. The contrib
          Instrumentation.* packages version independently and lag core, so they intentionally
          stay on 1.15.x — do not "lockstep" them to 1.16.0 (no matching release). -->
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.17.0" />
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.16.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.16.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.16.0" />
