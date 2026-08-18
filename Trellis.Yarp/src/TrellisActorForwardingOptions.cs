@@ -63,11 +63,12 @@ public sealed class TrellisActorForwardingOptions
     public required string Issuer { get; set; }
 
     /// <summary>
-    /// Asymmetric signing credential used to sign every minted JWT on the static default path.
-    /// <see cref="SigningCredentials.Key"/> MUST be asymmetric (typically
-    /// <see cref="RsaSecurityKey"/> or <see cref="ECDsaSecurityKey"/>) and MUST have a
-    /// non-empty <see cref="SecurityKey.KeyId"/> (the <c>kid</c>). Startup validation
-    /// rejects symmetric keys, null keys, and missing <c>kid</c>.
+    /// RS256 signing credential used to sign every minted JWT on the static default path.
+    /// <see cref="SigningCredentials.Key"/> MUST be an <see cref="RsaSecurityKey"/> with a
+    /// non-empty <see cref="SecurityKey.KeyId"/> (the <c>kid</c>), and
+    /// <see cref="SigningCredentials.Algorithm"/> MUST be <c>RS256</c> — the algorithm the
+    /// default consumer profile pins. Startup validation rejects symmetric keys, null keys,
+    /// missing <c>kid</c>, ECDSA keys, and every other algorithm.
     /// </summary>
     /// <remarks>
     /// <para>

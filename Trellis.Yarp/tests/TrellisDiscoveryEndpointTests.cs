@@ -148,9 +148,14 @@ public sealed class TrellisDiscoveryEndpointTests
     {
         // PR review feedback (round 3): the JWKS `alg` hint must match
         // options.SigningCredentials.Algorithm exactly — not be derived from the key TYPE
-        // (which previously defaulted to RS256/ES256 regardless of whether the consumer
-        // configured RS384/RS512/etc). Misalignment between JWKS alg and discovery doc
-        // alg would mislead metadata consumers and break ValidAlgorithms enforcement.
+        // (which previously defaulted to RS256/ES256 regardless of the configured algorithm).
+        //
+        // RS384/RS512 are NOT supported configurations — options validation now rejects
+        // anything but RS256 (TrellisSigningKeyValidation.RequiredAlgorithm), so they cannot
+        // reach BuildJwks in a running gateway. They are used here deliberately as unreachable
+        // probe inputs: with RS256 alone, "mirrors the configured algorithm" and "derives from
+        // the key type" are indistinguishable, so a regression to type-derivation would pass
+        // unnoticed. Exercising BuildJwks in isolation keeps that distinction observable.
         var rsa = new RsaSecurityKey(System.Security.Cryptography.RSA.Create(2048)) { KeyId = "active-1" };
         var previous = new RsaSecurityKey(System.Security.Cryptography.RSA.Create(2048)) { KeyId = "prev-1" };
         var options = new TrellisActorForwardingOptions

@@ -112,6 +112,17 @@ internal sealed class TrellisActorJwtMinter
         var projectedForbidden = options.ProjectForbiddenFor(cluster, actor.ForbiddenPermissions);
         var projectedAttributes = options.ProjectAttributes(cluster, actor.Attributes);
 
+        // The five callbacks above are operator-supplied and run per request; nothing else checks
+        // their output. A blank sub/aud, or a blank permission entry, still produces a perfectly
+        // well-signed token — which then fails at EVERY consumer (blank sub => actor provider
+        // returns None => 401; blank aud => forced ValidateAudience fails). The result is a
+        // fleet-wide 401 storm whose cause is a callback several services away. Validate here, at
+        // the only point where the offending callback can still be named.
+        RequireNonBlank(audience, nameof(TrellisActorForwardingOptions.AudiencePerCluster), "the 'aud' claim");
+        RequireProjection(projectedPermissions, nameof(TrellisActorForwardingOptions.ProjectPermissionsFor));
+        RequireProjection(projectedForbidden, nameof(TrellisActorForwardingOptions.ProjectForbiddenFor));
+        RequireProjection(projectedAttributes, nameof(TrellisActorForwardingOptions.ProjectAttributes));
+
         var jti = Guid.NewGuid().ToString("N");
 
         var subject = BuildSubject(
@@ -148,6 +159,33 @@ internal sealed class TrellisActorJwtMinter
             ForbiddenPermissionsCount: projectedForbidden.Count);
     }
 
+    private static void RequireNonBlank(string? value, string callback, string claimDescription)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new InvalidOperationException(
+                $"TrellisActorForwardingOptions.{callback} returned a null, empty, or whitespace value for {claimDescription}. " +
+                "The token would still be signed successfully but would be rejected by every downstream consumer, producing a fleet-wide 401 with no attribution back to this callback. " +
+                $"Return a non-blank value from {callback}.");
+    }
+
+    private static void RequireProjection<T>(T? projection, string callback)
+        where T : class
+    {
+        if (projection is null)
+            throw new InvalidOperationException(
+                $"TrellisActorForwardingOptions.{callback} returned null. " +
+                "Return an empty collection instead — an absent projection and an empty projection are different states, and only the latter is expressible in the token contract.");
+    }
+
+    private static void RequireNonBlankEntry(string? entry, string callback, string entryDescription)
+    {
+        if (string.IsNullOrWhiteSpace(entry))
+            throw new InvalidOperationException(
+                $"TrellisActorForwardingOptions.{callback} returned a null, empty, or whitespace {entryDescription}. " +
+                "A blank entry matches no policy downstream yet still counts toward the emitted count claim, breaking the agreement between the count claim and the claim values that consumers rely on. " +
+                $"Filter blank entries out in {callback}.");
+    }
+
     private static ClaimsIdentity BuildSubject(
         string jti,
         string actorId,
@@ -155,6 +193,8 @@ internal sealed class TrellisActorJwtMinter
         IReadOnlySet<string> forbidden,
         IReadOnlyDictionary<string, string> attributes)
     {
+        RequireNonBlank(actorId, nameof(TrellisActorForwardingOptions.ActorIdResolver), "the 'sub' claim");
+
         var identity = new ClaimsIdentity();
 
         identity.AddClaim(new Claim(TrellisInternalJwtClaimNames.Subject, actorId));
@@ -164,13 +204,28 @@ internal sealed class TrellisActorJwtMinter
         identity.AddClaim(new Claim(TrellisInternalJwtClaimNames.ForbiddenPermissionsCount, forbidden.Count.ToString(CultureInfo.InvariantCulture)));
 
         foreach (var permission in permissions)
+        {
+            RequireNonBlankEntry(permission, nameof(TrellisActorForwardingOptions.ProjectPermissionsFor), "permission");
             identity.AddClaim(new Claim(TrellisInternalJwtClaimNames.Permissions, permission));
+        }
 
         foreach (var permission in forbidden)
+        {
+            RequireNonBlankEntry(permission, nameof(TrellisActorForwardingOptions.ProjectForbiddenFor), "forbidden permission");
             identity.AddClaim(new Claim(TrellisInternalJwtClaimNames.ForbiddenPermissions, permission));
+        }
 
         foreach (var (claimName, value) in attributes)
         {
+            RequireNonBlankEntry(claimName, nameof(TrellisActorForwardingOptions.ProjectAttributes), "attribute claim name");
+
+            // An empty attribute VALUE is legitimate (a present-but-empty tag), so only null is
+            // rejected here. Claim's constructor would throw ArgumentNullException naming just
+            // "value", which gives an operator nothing to act on.
+            if (value is null)
+                throw new InvalidOperationException(
+                    $"TrellisActorForwardingOptions.ProjectAttributes returned a null value for attribute claim '{claimName}'. " +
+                    "Use an empty string for a present-but-empty attribute, or omit the entry entirely.");
             // Fail loudly if ProjectAttributes returns a key that collides with a reserved
             // JWT claim name (iss/aud/exp/nbf/iat/jti/sub) or with the structural Trellis
             // contract claim names (the count + version sentinels, the permissions / forbidden

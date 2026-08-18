@@ -72,7 +72,7 @@ public sealed class TrellisActorForwardingOptionsValidatorTests
 
         result.Failed.Should().BeTrue();
         result.FailureMessage.Should().Contain(nameof(TrellisActorForwardingOptions.SigningCredentials));
-        result.FailureMessage.Should().Contain("asymmetric");
+        result.FailureMessage.Should().Contain("RS256");
     }
 
     [Fact]
@@ -133,6 +133,40 @@ public sealed class TrellisActorForwardingOptionsValidatorTests
         result.FailureMessage.Should().Contain("symmetric");
     }
 
+    [Theory]
+    [InlineData(SecurityAlgorithms.RsaSha384)]
+    [InlineData(SecurityAlgorithms.RsaSha512)]
+    [InlineData(SecurityAlgorithms.RsaSsaPssSha256)]
+    public void Validate_AsymmetricAlgorithmOtherThanRs256_Rejected(string algorithm)
+    {
+        // The gateway mints for a fleet whose default consumer profile
+        // (AddTrellisInternalJwtBearer) pins ValidAlgorithms = ["RS256"]. Accepting RS384 here
+        // would mint tokens every microservice rejects — an outage discoverable only in
+        // production. Fail at startup instead.
+        var rsa = new RsaSecurityKey(RSA.Create(2048)) { KeyId = "rsa-1" };
+        var credentials = new SigningCredentials(rsa, algorithm);
+        var options = Valid(b => b.SigningCredentials = credentials);
+
+        var result = Validator.Validate(name: null, options);
+
+        result.Failed.Should().BeTrue();
+        result.FailureMessage.Should().Contain("RS256");
+    }
+
+    [Fact]
+    public void Validate_EcdsaSigningKey_Rejected()
+    {
+        // ECDsa cannot produce RS256, so an EC key can never satisfy the pinned contract.
+        var ec = new ECDsaSecurityKey(ECDsa.Create(ECCurve.NamedCurves.nistP256)) { KeyId = "ec-1" };
+        var credentials = new SigningCredentials(ec, SecurityAlgorithms.EcdsaSha256);
+        var options = Valid(b => b.SigningCredentials = credentials);
+
+        var result = Validator.Validate(name: null, options);
+
+        result.Failed.Should().BeTrue();
+        result.FailureMessage.Should().Contain("RS256");
+    }
+
     [Fact]
     public void Validate_X509SecurityKey_RejectedAsUnsupported()
     {
@@ -158,8 +192,8 @@ public sealed class TrellisActorForwardingOptionsValidatorTests
     [Fact]
     public void Validate_SigningKeyAlgorithmMismatch_Fails()
     {
-        // Structurally asymmetric + non-HMAC, but an RSA key can't sign with an EC algorithm — it
-        // would throw at mint time. Catch it at startup.
+        // Structurally asymmetric + non-HMAC, but an RSA key can't sign with an EC algorithm — and
+        // the contract pins RS256 regardless. Catch it at startup.
         var rsa = new RsaSecurityKey(RSA.Create(2048)) { KeyId = "rsa-1" };
         var credentials = new SigningCredentials(rsa, SecurityAlgorithms.EcdsaSha256);
         var options = Valid(b => b.SigningCredentials = credentials);
@@ -167,7 +201,7 @@ public sealed class TrellisActorForwardingOptionsValidatorTests
         var result = Validator.Validate(name: null, options);
 
         result.Failed.Should().BeTrue();
-        result.FailureMessage.Should().Contain("not usable with");
+        result.FailureMessage.Should().Contain("RS256");
     }
 
     [Fact]

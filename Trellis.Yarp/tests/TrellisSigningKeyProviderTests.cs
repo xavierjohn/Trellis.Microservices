@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using global::Microsoft.IdentityModel.JsonWebTokens;
 using global::Microsoft.IdentityModel.Tokens;
 using global::Yarp.ReverseProxy.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
@@ -187,8 +188,8 @@ public sealed class TrellisSigningKeyProviderTests
     [Fact]
     public void Validate_CurrentKeyAlgorithmMismatch_Fails()
     {
-        // RSA key paired with an EC algorithm is structurally "asymmetric + non-HMAC" but throws at
-        // sign time; catch it at validation so it can't poison the last-known-good ring.
+        // An EC algorithm is neither producible by an RSA key nor permitted by the RS256 pin.
+        // Caught at validation so it can't poison the last-known-good ring.
         var rsaKey = NewRsaKey("k1");
         var ring = new TrellisSigningKeyRing
         {
@@ -197,7 +198,8 @@ public sealed class TrellisSigningKeyProviderTests
         };
 
         TrellisSigningKeyRingValidator.Validate(ring).Should()
-            .Contain(f => f.Contains("not usable with the Current.Key type", StringComparison.Ordinal));
+            .Contain(f => f.Contains("is not supported", StringComparison.Ordinal)
+                && f.Contains("RS256", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -213,7 +215,8 @@ public sealed class TrellisSigningKeyProviderTests
         };
 
         TrellisSigningKeyRingValidator.Validate(ring).Should()
-            .Contain(f => f.Contains("not usable with the Current.Key type", StringComparison.Ordinal));
+            .Contain(f => f.Contains("is not supported", StringComparison.Ordinal)
+                && f.Contains("RS256", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -221,7 +224,7 @@ public sealed class TrellisSigningKeyProviderTests
     {
         // Current is RSA (RS256); a retiring EC key in the published set would be emitted by JWKS with
         // a mislabeled `alg` (normalized to the active RS256), breaking downstream validation for any
-        // token minted under it. Reject the mixed-family ring loudly.
+        // token minted under it. Under the RS256 pin an EC key can never belong to the ring at all.
         var current = NewRsaCredentials("rsa-current");
         var retiringEc = new ECDsaSecurityKey(ECDsa.Create(ECCurve.NamedCurves.nistP256)) { KeyId = "ec-retiring" };
         var ring = new TrellisSigningKeyRing
@@ -231,7 +234,8 @@ public sealed class TrellisSigningKeyProviderTests
         };
 
         TrellisSigningKeyRingValidator.Validate(ring).Should()
-            .Contain(f => f.Contains("not compatible with the active algorithm", StringComparison.Ordinal));
+            .Contain(f => f.Contains("ValidationKeys[1]", StringComparison.Ordinal)
+                && f.Contains("only RsaSecurityKey is supported", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -286,6 +290,112 @@ public sealed class TrellisSigningKeyProviderTests
 
         provider.GetCurrentRing().Should().BeSameAs(good,
             "a botched rotation must fall back to the last known-good ring, never take the gateway down");
+    }
+
+    [Fact]
+    public void GetCurrentRing_StuckBadRing_LogsOnceNotPerCall()
+    {
+        // A provider stuck on the same bad instance is hit on EVERY proxied request. Re-validating
+        // and re-warning per call turns one misconfiguration into a CPU and log-volume amplifier
+        // that drowns the surrounding audit trail. Judge each distinct instance once.
+        var good = NewRing("active-1");
+        var inner = new MutableSigningKeyProvider(good);
+        var logger = new CountingLogger<ValidatingTrellisSigningKeyProvider>();
+        var provider = new ValidatingTrellisSigningKeyProvider(inner, logger);
+
+        provider.GetCurrentRing().Should().BeSameAs(good);
+
+        var bad = new TrellisSigningKeyRing
+        {
+            Current = NewRsaCredentials("rotated-2"),
+            ValidationKeys = [NewRsaKey("only-other")],
+        };
+        inner.Set(bad);
+
+        for (var i = 0; i < 50; i++)
+            provider.GetCurrentRing().Should().BeSameAs(good);
+
+        logger.WarningCount.Should().Be(1,
+            "the rejection is logged on transition — once per distinct bad ring instance, not once per request");
+    }
+
+    [Fact]
+    public void GetCurrentRing_NewBadRingAfterBadRing_LogsAgain()
+    {
+        // Transition-logging must not silence a SUBSEQUENT failed rotation: each distinct bad
+        // snapshot is its own operational event and must still raise an alert.
+        var good = NewRing("active-1");
+        var inner = new MutableSigningKeyProvider(good);
+        var logger = new CountingLogger<ValidatingTrellisSigningKeyProvider>();
+        var provider = new ValidatingTrellisSigningKeyProvider(inner, logger);
+
+        provider.GetCurrentRing();
+
+        inner.Set(new TrellisSigningKeyRing
+        {
+            Current = NewRsaCredentials("rotated-2"),
+            ValidationKeys = [NewRsaKey("only-other")],
+        });
+        provider.GetCurrentRing();
+        provider.GetCurrentRing();
+
+        inner.Set(new TrellisSigningKeyRing
+        {
+            Current = NewRsaCredentials("rotated-3"),
+            ValidationKeys = [NewRsaKey("still-wrong")],
+        });
+        provider.GetCurrentRing();
+        provider.GetCurrentRing();
+
+        logger.WarningCount.Should().Be(2, "one warning per distinct rejected ring instance");
+    }
+
+    [Fact]
+    public void GetCurrentRing_RejectionIsNeverCachedWithoutItsWarning()
+    {
+        // Guards the ordering the code review surfaced: if a rejected ring were cached BEFORE its
+        // warning was emitted, a throw on the no-known-good path would leave the instance marked
+        // "already judged". Once a good ring later arrived, every subsequent request would fall
+        // back silently and the operator alert for that bad ring would never fire.
+        var bad = new TrellisSigningKeyRing
+        {
+            Current = NewRsaCredentials("rotated-2"),
+            ValidationKeys = [NewRsaKey("only-other")],
+        };
+        var inner = new MutableSigningKeyProvider(bad);
+        var logger = new CountingLogger<ValidatingTrellisSigningKeyProvider>();
+        var provider = new ValidatingTrellisSigningKeyProvider(inner, logger);
+
+        // No known-good ring yet: fail closed, and record nothing about this instance.
+        provider.Invoking(p => p.GetCurrentRing()).Should().Throw<InvalidOperationException>();
+        logger.WarningCount.Should().Be(0, "the throw is the signal; no fallback happened");
+
+        // A good ring establishes the fallback, then the SAME bad instance returns.
+        var good = NewRing("active-1");
+        inner.Set(good);
+        provider.GetCurrentRing().Should().BeSameAs(good);
+        inner.Set(bad);
+
+        provider.GetCurrentRing().Should().BeSameAs(good);
+
+        logger.WarningCount.Should().Be(1,
+            "the previously-thrown-on ring must still raise its alert the first time it is actually served from fallback");
+    }
+
+    [Fact]
+    public void GetCurrentRing_StuckBadRingWithNoKnownGood_KeepsThrowing()
+    {
+        // Caching the verdict must not degrade fail-closed behavior: with no known-good ring to
+        // fall back on, EVERY call must still throw rather than return a cached bad ring.
+        var bad = new TrellisSigningKeyRing
+        {
+            Current = NewRsaCredentials("active-1"),
+            ValidationKeys = [NewRsaKey("mismatched")],
+        };
+        var provider = NewValidating(new MutableSigningKeyProvider(bad));
+
+        for (var i = 0; i < 3; i++)
+            provider.Invoking(p => p.GetCurrentRing()).Should().Throw<InvalidOperationException>();
     }
 
     [Fact]
@@ -430,5 +540,29 @@ public sealed class TrellisSigningKeyProviderTests
         private volatile TrellisSigningKeyRing _ring = initial;
         public void Set(TrellisSigningKeyRing ring) => _ring = ring;
         public TrellisSigningKeyRing GetCurrentRing() => _ring;
+    }
+
+    /// <summary>
+    /// Counts emitted Warning records so the rejection log can be asserted as
+    /// once-per-transition rather than once-per-request.
+    /// </summary>
+    private sealed class CountingLogger<T> : ILogger<T>
+    {
+        public int WarningCount { get; private set; }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning)
+                WarningCount++;
+        }
     }
 }

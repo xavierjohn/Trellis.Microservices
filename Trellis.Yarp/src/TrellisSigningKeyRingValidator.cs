@@ -15,13 +15,13 @@ using global::Microsoft.IdentityModel.Tokens;
 /// or publish.
 /// </summary>
 /// <remarks>
-/// Algorithm-family consistency is enforced end-to-end: the current signer's key must match its
-/// algorithm (an RSA key with an EC algorithm, or vice-versa, is rejected before it can poison the
-/// last-known-good ring), AND every published <see cref="TrellisSigningKeyRing.ValidationKeys"/>
-/// entry must be usable with the active <see cref="TrellisSigningKeyRing.Current"/> algorithm.
-/// The latter matters because the JWKS builder normalizes every published key's <c>alg</c> to the
-/// active algorithm, so a mixed-family ring would emit a mislabeled JWK and break downstream
-/// validation for tokens minted under the off-family key.
+/// Algorithm-family consistency is enforced end-to-end: the current signer's algorithm must be
+/// the pinned <see cref="TrellisSigningKeyValidation.RequiredAlgorithm"/> and its key must be an
+/// RSA key usable with it (anything else is rejected before it can poison the last-known-good
+/// ring), AND every published <see cref="TrellisSigningKeyRing.ValidationKeys"/> entry must be
+/// usable with that same algorithm. The latter matters because the JWKS builder normalizes every
+/// published key's <c>alg</c> to the active algorithm, so an off-family key would emit a
+/// mislabeled JWK and break downstream validation for tokens minted under it.
 /// </remarks>
 internal static class TrellisSigningKeyRingValidator
 {
@@ -47,11 +47,13 @@ internal static class TrellisSigningKeyRingValidator
         {
             ValidateKey(current.Key, "Current.Key", failures);
             if (TrellisSigningKeyValidation.IsSymmetricAlgorithm(current.Algorithm))
-                failures.Add($"Current.Algorithm '{current.Algorithm}' is an HMAC (symmetric) algorithm; the ring is published in JWKS and MUST use an asymmetric algorithm (RS256/RS384/RS512 or ES256/ES384/ES512).");
+                failures.Add($"Current.Algorithm '{current.Algorithm}' is an HMAC (symmetric) algorithm; the ring is published in JWKS and MUST use {TrellisSigningKeyValidation.RequiredAlgorithm}.");
+            else if (!TrellisSigningKeyValidation.IsRequiredAlgorithm(current.Algorithm))
+                failures.Add($"Current.Algorithm '{current.Algorithm}' is not supported; the Trellis internal-JWT contract pins {TrellisSigningKeyValidation.RequiredAlgorithm}, which the default consumer profile enforces as ValidAlgorithms = [\"{TrellisSigningKeyValidation.RequiredAlgorithm}\"]. Minting under any other algorithm produces tokens the whole fleet rejects.");
             else if (current.Key is not null
                 && TrellisSigningKeyValidation.IsSupportedAsymmetricKey(current.Key)
                 && !TrellisSigningKeyValidation.IsAlgorithmSupportedForKey(current.Key, current.Algorithm))
-                failures.Add($"Current.Algorithm '{current.Algorithm}' is not usable with the Current.Key type ({current.Key.GetType().Name}); an RSA key requires an RSA algorithm (RS256/384/512 or PS256/384/512) and an ECDSA key requires an EC algorithm (ES256/384/512). Signing would fail at mint time and poison the last-known-good ring.");
+                failures.Add($"Current.Algorithm '{current.Algorithm}' is not usable with the Current.Key type ({current.Key.GetType().Name}); the configured crypto provider cannot create a {TrellisSigningKeyValidation.RequiredAlgorithm} signer for this key. Signing would fail at mint time and poison the last-known-good ring.");
         }
 
         if (ring.ValidationKeys is null)
@@ -156,6 +158,6 @@ internal static class TrellisSigningKeyRingValidator
         if (TrellisSigningKeyValidation.IsSymmetric(key))
             failures.Add($"{context} is a symmetric key ({key.GetType().Name}{TrellisSigningKeyValidation.DescribeJwkKty(key)}); the ring is published in JWKS and MUST be asymmetric — publishing symmetric key material would leak the signing secret.");
         else if (!TrellisSigningKeyValidation.IsSupportedAsymmetricKey(key))
-            failures.Add($"{context} is a {key.GetType().Name}; only RsaSecurityKey and ECDsaSecurityKey are supported in the ring. Unwrap X509SecurityKey / JsonWebKey to RsaSecurityKey or ECDsaSecurityKey before publishing.");
+            failures.Add($"{context} is a {key.GetType().Name}; only RsaSecurityKey is supported in the ring, because the contract pins {TrellisSigningKeyValidation.RequiredAlgorithm}. Unwrap X509SecurityKey / JsonWebKey to RsaSecurityKey before publishing.");
     }
 }

@@ -54,7 +54,7 @@ Configuration for the YARP actor-forwarding transform. Bound via `AddOptions<Tre
 | Member | Type | Default | Required? | Purpose |
 |---|---|---|---|---|
 | `Issuer` | `string` | (none) | **Yes** | JWT `iss` claim value AND OIDC discovery doc `issuer`. Conventionally a URL identifying the gateway (e.g. `"https://gateway.internal"`). |
-| `SigningCredentials` | `SigningCredentials` | (none) | Static default only | Asymmetric signing credential. `Key` MUST be asymmetric (`RsaSecurityKey` / `ECDsaSecurityKey`) and MUST have a non-empty `KeyId` (the `kid`). Startup validation rejects symmetric / null / missing-`kid` keys. **Ignored (and not required) when a custom [`ITrellisSigningKeyProvider`](#itrellissigningkeyprovider-signing-key-rotation-seam) is supplied** — the provider owns the ring. |
+| `SigningCredentials` | `SigningCredentials` | (none) | Static default only | RSA signing credential. `Key` MUST be an `RsaSecurityKey` with a non-empty `KeyId` (the `kid`), and `Algorithm` MUST be `RS256`. Startup validation rejects symmetric / null / missing-`kid` keys, `ECDsaSecurityKey`, and every algorithm other than `RS256`. **Ignored (and not required) when a custom [`ITrellisSigningKeyProvider`](#itrellissigningkeyprovider-signing-key-rotation-seam) is supplied** — the provider owns the ring. |
 | `PreviousSigningKeys` | `IReadOnlyList<SecurityKey>` | `[]` | No | Previous-generation signing keys still trusted during a rotation overlap window. Each entry MUST be asymmetric + non-empty `kid`. NOT used to sign new tokens; ARE published in JWKS. |
 | `PublicBaseUrl` | `Uri` | (none) | **Yes** | Absolute public URL the gateway is reachable at. Used to build absolute URLs in the OIDC discovery document. **NOT inferred from `HttpRequest.Host`** (spoofable behind reverse proxies). |
 | `AudiencePerCluster` | `Func<ClusterConfig, string>` | `cluster => cluster.ClusterId` | No | Selects the JWT `aud` claim value per destination cluster. Override to a per-cluster audience literal so each downstream pins `JwtBearerOptions.Audience` to a unique value (cross-audience confusion defense). |
@@ -184,7 +184,9 @@ app.MapTrellisDiscoveryEndpoint()
 
 **URLs come from options, never request context.** `HttpRequest.Host` is spoofable behind reverse proxies. Both endpoints construct their absolute URLs exclusively from `TrellisActorForwardingOptions.PublicBaseUrl` (startup-validated absolute) joined with the literal paths supplied here. Verified by `TrellisDiscoveryEndpointTests.MapTrellisDiscoveryEndpoint_JwksUri_IgnoresHttpRequestHostHeader`.
 
-**Active-algorithm advertisement.** The discovery document advertises only the active `SigningCredentials.Algorithm` (not a hardcoded list of `["RS256", "RS384", ...]`). The JWKS document normalizes each key's `alg` field to the active algorithm. Pair downstream with `ValidAlgorithms = [activeAlg]` so a future rotation that changes the algorithm cannot silently accept tokens signed under the old algorithm.
+**Active-algorithm advertisement.** The discovery document advertises only the active `SigningCredentials.Algorithm` rather than a hardcoded list, and the JWKS document normalizes each key's `alg` field to it. Because the gateway pins `RS256` (see below), that value is always `RS256` — the mirroring behaviour remains so the document can never drift from what is actually minted.
+
+**RS256 is pinned, not configurable.** The signing algorithm is one half of a two-sided contract: the default consumer profile (`AddTrellisInternalJwtBearer`) forces `ValidAlgorithms = ["RS256"]` as a non-negotiable invariant. Nothing at startup compares the two sides, so a gateway configured with `RS384` or `ES256` would mint perfectly well-signed tokens that **every** microservice in the fleet rejects — an outage visible only at request time. The gateway therefore refuses any algorithm but `RS256` at startup, and rejects `ECDsaSecurityKey` outright since no EC key can produce it.
 
 **Symmetric-key + unsupported-type defense in depth.** The JWKS builder refuses to serialize any symmetric key, even though startup validation already rejects them, and silently skips any `SecurityKey` type the JWKS converter does not support. The two-layer check survives a future refactor that loosens validation and matches the v1-only-asymmetric contract.
 
@@ -211,6 +213,19 @@ Every minted JWT carries this exact claim set, matching the consumer-side `Trell
 | One claim per `ProjectAttributes` entry | The entry value (single-valued) | Claim name = the entry key. Reserved + structural claim names are rejected at mint time. |
 
 The JWT header carries `alg` (matches `SigningCredentials.Algorithm`) and `kid` (matches `SigningCredentials.Key.KeyId`).
+
+**Mint-time claim-shape validation.** The five projection callbacks (`AudiencePerCluster`, `ActorIdResolver`, `ProjectPermissionsFor`, `ProjectForbiddenFor`, `ProjectAttributes`) are operator-supplied and run per request; no other layer inspects their output. A callback returning a blank value still yields a perfectly well-signed token — which then fails at *every* consumer (a blank `sub` makes `TrellisInternalJwtActorProvider` return `Maybe.None` → 401; a blank `aud` fails the forced `ValidateAudience`). The result is a fleet-wide 401 storm whose cause is a callback several services away. `MintFor` therefore throws `InvalidOperationException`, naming the offending callback, when:
+
+| Condition | Callback |
+|---|---|
+| `sub` is null, empty, or whitespace | `ActorIdResolver` |
+| `aud` is null, empty, or whitespace | `AudiencePerCluster` |
+| The projection returns `null` (return an empty collection instead) | `ProjectPermissionsFor`, `ProjectForbiddenFor`, `ProjectAttributes` |
+| Any projected permission entry is null, empty, or whitespace | `ProjectPermissionsFor`, `ProjectForbiddenFor` |
+| Any attribute claim name is null, empty, or whitespace | `ProjectAttributes` |
+| Any attribute value is `null` | `ProjectAttributes` |
+
+A blank permission entry is rejected because it matches no policy downstream yet still counts toward the emitted count claim, breaking the count/content agreement consumers rely on. An *empty* attribute value is permitted (a present-but-empty tag); only `null` is rejected.
 
 ---
 

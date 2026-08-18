@@ -27,7 +27,7 @@ using global::Microsoft.IdentityModel.Tokens;
 /// </para>
 /// <para>
 /// <b>Asymmetric only.</b> Every key in <see cref="ValidationKeys"/> is published in JWKS, so
-/// all keys MUST be asymmetric (<see cref="RsaSecurityKey"/> / <see cref="ECDsaSecurityKey"/>)
+/// all keys MUST be <see cref="RsaSecurityKey"/> (the contract pins RS256)
 /// with a non-empty, unique <c>kid</c>. Symmetric keys / HMAC algorithms are rejected —
 /// publishing them would leak the signing secret.
 /// </para>
