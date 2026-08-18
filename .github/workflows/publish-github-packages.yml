@@ -1,7 +1,7 @@
-name: Publish Trellis.Microservices Alpha
+name: Publish to GitHub Packages
 
 # Publishes alpha NuGet packages to GitHub Packages on manual dispatch.
-# For stable nuget.org releases, use the publish.yml workflow instead.
+# For stable nuget.org releases, use the publish-nuget-org.yml workflow instead.
 
 on:
   workflow_dispatch:
@@ -46,8 +46,8 @@ jobs:
       - name: Build
         run: dotnet build Trellis.Microservices.slnx --no-restore --configuration Release
 
-      - name: Pack Alpha
-        run: dotnet pack Trellis.Microservices.slnx --no-build --configuration Release --version-suffix "alpha.${{ github.run_number }}" --output ./dist
+      - name: Pack
+        run: dotnet pack Trellis.Microservices.slnx --no-build --configuration Release --output ./dist
 
       - name: List packages
         run: |

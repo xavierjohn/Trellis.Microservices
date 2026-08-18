@@ -1,8 +1,8 @@
-name: Publish NuGet Package
+name: Publish to NuGet.org
 
 # Publishes stable NuGet packages to nuget.org on manual dispatch with an
 # explicit dry-run option. Requires the NUGET_API_KEY repository secret.
-# For alpha previews, use publish-alpha.yml instead.
+# For alpha previews, use publish-github-packages.yml instead.
 
 on:
   workflow_dispatch:
