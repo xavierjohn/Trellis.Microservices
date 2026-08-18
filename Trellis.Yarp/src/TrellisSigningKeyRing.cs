@@ -27,7 +27,7 @@ using global::Microsoft.IdentityModel.Tokens;
 /// </para>
 /// <para>
 /// <b>Asymmetric only.</b> Every key in <see cref="ValidationKeys"/> is published in JWKS, so
-/// all keys MUST be asymmetric (<see cref="RsaSecurityKey"/> / <see cref="ECDsaSecurityKey"/>)
+/// all keys MUST be <see cref="RsaSecurityKey"/> (the contract pins RS256)
 /// with a non-empty, unique <c>kid</c>. Symmetric keys / HMAC algorithms are rejected —
 /// publishing them would leak the signing secret.
 /// </para>
@@ -36,8 +36,9 @@ public sealed class TrellisSigningKeyRing
 {
     /// <summary>
     /// The credential used to sign newly minted tokens. Its <see cref="SigningCredentials.Key"/>
-    /// MUST be asymmetric with a non-empty <c>kid</c>, and its public component MUST be present
-    /// in <see cref="ValidationKeys"/>.
+    /// MUST be an <see cref="RsaSecurityKey"/> with a non-empty <c>kid</c>, its
+    /// <see cref="SigningCredentials.Algorithm"/> MUST be <c>RS256</c>, and its public component
+    /// MUST be present in <see cref="ValidationKeys"/>.
     /// </summary>
     public required SigningCredentials Current { get; init; }
 
@@ -45,7 +46,7 @@ public sealed class TrellisSigningKeyRing
     /// Every key to publish in the JWKS document for downstream validation — the current key
     /// plus any retiring keys still inside their rotation overlap window. MUST include the
     /// public component of <see cref="Current"/>'s key (matched by <c>kid</c>). Every entry
-    /// MUST be asymmetric with a unique, non-empty <c>kid</c>.
+    /// MUST be an <see cref="RsaSecurityKey"/> with a unique, non-empty <c>kid</c>.
     /// </summary>
     /// <remarks>
     /// Defensively copied on assignment so the snapshot is structurally immutable: a provider that

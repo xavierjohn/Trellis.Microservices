@@ -15,6 +15,25 @@ using global::Microsoft.IdentityModel.Tokens;
 internal static class TrellisSigningKeyValidation
 {
     /// <summary>
+    /// The ONE JWT signature algorithm the Trellis internal-JWT contract supports.
+    /// </summary>
+    /// <remarks>
+    /// This is pinned rather than configurable because it is one half of a two-sided contract:
+    /// the default consumer profile (<c>AddTrellisInternalJwtBearer</c>) forces
+    /// <c>ValidAlgorithms = ["RS256"]</c> as a non-negotiable invariant. If the gateway accepted
+    /// any other algorithm it would mint tokens that every microservice in the fleet rejects —
+    /// a fleet-wide outage discoverable only in production, because nothing at startup compares
+    /// the two sides. Pinning here makes the mismatch impossible to express.
+    /// </remarks>
+    public const string RequiredAlgorithm = SecurityAlgorithms.RsaSha256;
+
+    /// <summary>
+    /// True when <paramref name="algorithm"/> is exactly <see cref="RequiredAlgorithm"/>.
+    /// </summary>
+    public static bool IsRequiredAlgorithm(string? algorithm) =>
+        string.Equals(algorithm, RequiredAlgorithm, StringComparison.Ordinal);
+
+    /// <summary>
     /// Recognizes symmetric keys, including the <see cref="JsonWebKey"/> wrapper case where the
     /// underlying material is HMAC (<c>kty: "oct"</c>). Without the JWK check a caller could
     /// bypass the asymmetric-only contract by passing
@@ -35,18 +54,21 @@ internal static class TrellisSigningKeyValidation
             or SecurityAlgorithms.HmacSha512;
 
     /// <summary>
-    /// The allow-list of asymmetric key types v1 supports: <see cref="RsaSecurityKey"/> and
-    /// <see cref="ECDsaSecurityKey"/>. <see cref="X509SecurityKey"/> and <see cref="JsonWebKey"/>
-    /// wrappers are rejected because the JWKS builder cannot serialize them into a usable JWK
-    /// (see the discovery endpoint remarks).
+    /// The allow-list of asymmetric key types v1 supports: <see cref="RsaSecurityKey"/> only.
     /// </summary>
+    /// <remarks>
+    /// ECDSA keys are excluded because they cannot produce <see cref="RequiredAlgorithm"/>.
+    /// <see cref="X509SecurityKey"/> and <see cref="JsonWebKey"/> wrappers are excluded because
+    /// the JWKS builder cannot serialize them into a usable JWK (see the discovery endpoint
+    /// remarks); unwrap them to <see cref="RsaSecurityKey"/> first.
+    /// </remarks>
     public static bool IsSupportedAsymmetricKey(SecurityKey key) =>
-        key is RsaSecurityKey or ECDsaSecurityKey;
+        key is RsaSecurityKey;
 
     /// <summary>
-    /// True when <paramref name="algorithm"/> is a JWT SIGNATURE algorithm for <paramref name="key"/>'s
-    /// family AND the crypto provider can actually create a signer for the pair. The explicit
-    /// signing allow-list (RS*/PS* for RSA, ES* for ECDSA) is required because
+    /// True when <paramref name="algorithm"/> is <see cref="RequiredAlgorithm"/>, <paramref name="key"/>
+    /// belongs to the matching (RSA) family, AND the crypto provider can actually create a signer for
+    /// the pair. The explicit family check is required because
     /// <c>CryptoProviderFactory.IsSupportedAlgorithm</c> alone also accepts RSA ENCRYPTION / key-wrap
     /// algorithms (e.g. RSA-OAEP), which are structurally "asymmetric + non-HMAC" yet throw at sign
     /// time. Rejecting mismatches at validation keeps a bad rotation from poisoning the last-known-good
@@ -54,18 +76,10 @@ internal static class TrellisSigningKeyValidation
     /// </summary>
     public static bool IsAlgorithmSupportedForKey(SecurityKey key, string? algorithm)
     {
-        if (string.IsNullOrEmpty(algorithm))
+        if (!IsRequiredAlgorithm(algorithm))
             return false;
 
-        var isSignatureAlgorithmForKeyFamily = key switch
-        {
-            RsaSecurityKey => algorithm is SecurityAlgorithms.RsaSha256 or SecurityAlgorithms.RsaSha384 or SecurityAlgorithms.RsaSha512
-                or SecurityAlgorithms.RsaSsaPssSha256 or SecurityAlgorithms.RsaSsaPssSha384 or SecurityAlgorithms.RsaSsaPssSha512,
-            ECDsaSecurityKey => algorithm is SecurityAlgorithms.EcdsaSha256 or SecurityAlgorithms.EcdsaSha384 or SecurityAlgorithms.EcdsaSha512,
-            _ => false,
-        };
-
-        return isSignatureAlgorithmForKeyFamily && key.CryptoProviderFactory.IsSupportedAlgorithm(algorithm, key);
+        return key is RsaSecurityKey && key.CryptoProviderFactory.IsSupportedAlgorithm(algorithm, key);
     }
 
     /// <summary>

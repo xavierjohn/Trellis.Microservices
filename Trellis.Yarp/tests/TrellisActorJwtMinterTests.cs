@@ -436,6 +436,142 @@ public sealed class TrellisActorJwtMinterTests
         act.Should().Throw<ArgumentNullException>();
     }
 
+    // === Mint-time claim-shape validation of operator callback output ===
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public void MintFor_ActorIdResolverReturnsBlank_Throws(string? actorId)
+    {
+        // A blank `sub` mints a token that the gateway happily signs but that EVERY consumer
+        // rejects: TrellisInternalJwtActorProvider treats a whitespace actor id as None -> 401.
+        // Fail at the mint site, where the offending callback is named, rather than as a
+        // fleet-wide 401 storm with no attribution.
+        var (minter, _, _) = NewMinter(actorIdResolver: _ => actorId!);
+
+        var act = () => minter.MintFor(NewActor(), NewCluster("orders"));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*ActorIdResolver*");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public void MintFor_AudiencePerClusterReturnsBlank_Throws(string? audience)
+    {
+        // A blank `aud` fails the consumer's forced ValidateAudience, producing the same
+        // undiagnosable fleet-wide 401.
+        var (minter, _, _) = NewMinter(audiencePerCluster: _ => audience!);
+
+        var act = () => minter.MintFor(NewActor(), NewCluster("orders"));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*AudiencePerCluster*");
+    }
+
+    [Fact]
+    public void MintFor_ProjectPermissionsReturnsNull_Throws()
+    {
+        var (minter, _, _) = NewMinter(projectPermissions: (_, _) => null!);
+
+        var act = () => minter.MintFor(NewActor(), NewCluster("orders"));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*ProjectPermissionsFor*");
+    }
+
+    [Fact]
+    public void MintFor_ProjectForbiddenReturnsNull_Throws()
+    {
+        var (minter, _, _) = NewMinter(projectForbidden: (_, _) => null!);
+
+        var act = () => minter.MintFor(NewActor(), NewCluster("orders"));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*ProjectForbiddenFor*");
+    }
+
+    [Fact]
+    public void MintFor_ProjectAttributesReturnsNull_Throws()
+    {
+        var (minter, _, _) = NewMinter(projectAttributes: (_, _) => null!);
+
+        var act = () => minter.MintFor(NewActor(), NewCluster("orders"));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*ProjectAttributes*");
+    }
+
+    [Fact]
+    public void MintFor_ProjectedPermissionBlank_Throws()
+    {
+        // An empty permission string is not a permission. Emitting it produces a token whose
+        // permissions array contains "" — which no policy can match but which inflates the
+        // count claim, breaking the count/content agreement consumers rely on.
+        var (minter, _, _) = NewMinter(projectPermissions: (_, _) => new HashSet<string> { "orders.read", "  " });
+
+        var act = () => minter.MintFor(NewActor(), NewCluster("orders"));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*ProjectPermissionsFor*");
+    }
+
+    [Fact]
+    public void MintFor_ProjectedForbiddenPermissionBlank_Throws()
+    {
+        // Deny-overrides-allow makes a blank forbidden entry worse than a blank permission:
+        // it silently occupies a deny slot that matches nothing.
+        var (minter, _, _) = NewMinter(projectForbidden: (_, _) => new HashSet<string> { string.Empty });
+
+        var act = () => minter.MintFor(NewActor(), NewCluster("orders"));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*ProjectForbiddenFor*");
+    }
+
+    [Fact]
+    public void MintFor_ProjectedAttributeKeyBlank_Throws()
+    {
+        var (minter, _, _) = NewMinter(
+            projectAttributes: (_, _) => new Dictionary<string, string> { ["  "] = "value" });
+
+        var act = () => minter.MintFor(NewActor(), NewCluster("orders"));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*ProjectAttributes*");
+    }
+
+    [Fact]
+    public void MintFor_ProjectedAttributeValueNull_Throws()
+    {
+        // Claim's constructor would throw ArgumentNullException here, naming only "value" —
+        // useless for finding the offending callback. Throw with attribution instead.
+        var (minter, _, _) = NewMinter(
+            projectAttributes: (_, _) => new Dictionary<string, string> { ["tenant"] = null! });
+
+        var act = () => minter.MintFor(NewActor(), NewCluster("orders"));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*ProjectAttributes*");
+    }
+
+    [Fact]
+    public void MintFor_ProjectedAttributeValueEmpty_IsAllowed()
+    {
+        // An empty attribute VALUE is legitimate (a present-but-empty tenant tag); only null is
+        // rejected. Pinned so the guard is not tightened into a breaking change by accident.
+        var (minter, _, _) = NewMinter(
+            projectAttributes: (_, _) => new Dictionary<string, string> { ["tenant"] = string.Empty });
+
+        var result = minter.MintFor(NewActor(), NewCluster("orders"));
+
+        var jwt = new JsonWebToken(result.CompactJws);
+        jwt.GetClaim("tenant").Value.Should().BeEmpty();
+    }
+
     // === Fixtures ===
 
     private static (TrellisActorJwtMinter Minter, IOptions<TrellisActorForwardingOptions> Options, FakeTimeProvider TimeProvider) NewMinter(

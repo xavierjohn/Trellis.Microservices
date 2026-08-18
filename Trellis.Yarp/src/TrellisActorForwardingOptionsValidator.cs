@@ -103,7 +103,7 @@ internal sealed class TrellisActorForwardingOptionsValidator
     {
         if (credentials is null)
         {
-            failures.Add($"{member} is required — an asymmetric SigningCredentials with a non-empty Kid (typically RsaSecurityKey or ECDsaSecurityKey).");
+            failures.Add($"{member} is required — an RS256 SigningCredentials over an RsaSecurityKey with a non-empty Kid.");
             return;
         }
 
@@ -117,23 +117,25 @@ internal sealed class TrellisActorForwardingOptionsValidator
             failures.Add($"{member}.Key.KeyId (the 'kid') must be set to a non-empty string — every key in the rotation ring must be identifiable so JWKS lookup and audit correlation work. The transform emits 'kid' in the JWT header; downstream JwtBearerHandler and air-gapped static-key-ring consumers MUST resolve the right key by kid during rotation.");
 
         if (IsSymmetric(credentials.Key))
-            failures.Add($"{member}.Key is a symmetric key ({credentials.Key.GetType().Name}{DescribeJwkKty(credentials.Key)}); v1 rejects symmetric signing keys because publishing them in JWKS would leak the signing secret, AND refusing to publish them in JWKS silently breaks the 'downstream uses AddJwtBearer.Authority' discovery story. Use RsaSecurityKey or ECDsaSecurityKey instead.");
+            failures.Add($"{member}.Key is a symmetric key ({credentials.Key.GetType().Name}{DescribeJwkKty(credentials.Key)}); v1 rejects symmetric signing keys because publishing them in JWKS would leak the signing secret, AND refusing to publish them in JWKS silently breaks the 'downstream uses AddJwtBearer.Authority' discovery story. Use an RsaSecurityKey with RS256 instead.");
 
         if (IsSymmetricAlgorithm(credentials.Algorithm))
-            failures.Add($"{member}.Algorithm '{credentials.Algorithm}' is an HMAC (symmetric) algorithm; v1 rejects HMAC algorithms because the security model assumes the public verification material can be safely published in JWKS. Use RS256/RS384/RS512 (RSA) or ES256/ES384/ES512 (ECDSA) instead.");
+            failures.Add($"{member}.Algorithm '{credentials.Algorithm}' is an HMAC (symmetric) algorithm; v1 rejects HMAC algorithms because the security model assumes the public verification material can be safely published in JWKS. Use {TrellisSigningKeyValidation.RequiredAlgorithm} instead.");
+        else if (!TrellisSigningKeyValidation.IsRequiredAlgorithm(credentials.Algorithm))
+            failures.Add($"{member}.Algorithm '{credentials.Algorithm}' is not supported; the Trellis internal-JWT contract pins {TrellisSigningKeyValidation.RequiredAlgorithm}. The default consumer profile (AddTrellisInternalJwtBearer) forces ValidAlgorithms = [\"{TrellisSigningKeyValidation.RequiredAlgorithm}\"] as a non-negotiable invariant, so minting under any other algorithm would produce tokens that EVERY microservice in the fleet rejects — a fleet-wide outage visible only at request time. Use {TrellisSigningKeyValidation.RequiredAlgorithm} with an RsaSecurityKey.");
 
         if (!IsSymmetric(credentials.Key) && !IsSupportedAsymmetricKey(credentials.Key))
-            failures.Add($"{member}.Key is a {credentials.Key.GetType().Name}; v1 supports RsaSecurityKey and ECDsaSecurityKey. X509SecurityKey is rejected because the JWKS builder does not yet emit x5c/x5t. JsonWebKey wrappers are rejected because Microsoft.IdentityModel's JsonWebKeyConverter throws NotSupportedException for JsonWebKey input (JsonWebKey is the converter's OUTPUT format, not its input). The JWKS endpoint's defense-in-depth catch would SILENTLY SKIP the unsupported key — but the consequence is that the gateway's active signing key would then be ABSENT from the published JWKS, breaking ALL downstream JwtBearer token validation that uses Authority-based key discovery (the downstream resolves keys by kid from JWKS; missing kid = signature validation fails for every minted token). Unwrap to RsaSecurityKey via cert.GetRSAPrivateKey() (or ECDsaSecurityKey via cert.GetECDsaPrivateKey()) before passing it as the signing key — signing requires the PRIVATE key; using the public-key unwrap would pass validation but fail at runtime when minting.");
-        else if (!IsSymmetric(credentials.Key) && !IsSymmetricAlgorithm(credentials.Algorithm)
+            failures.Add($"{member}.Key is a {credentials.Key.GetType().Name}; v1 supports RsaSecurityKey only, because the contract pins {TrellisSigningKeyValidation.RequiredAlgorithm} and no other key family can produce it. ECDsaSecurityKey is rejected for that reason. X509SecurityKey is rejected because the JWKS builder does not yet emit x5c/x5t. JsonWebKey wrappers are rejected because Microsoft.IdentityModel's JsonWebKeyConverter throws NotSupportedException for JsonWebKey input (JsonWebKey is the converter's OUTPUT format, not its input). The JWKS endpoint's defense-in-depth catch would SILENTLY SKIP the unsupported key — but the consequence is that the gateway's active signing key would then be ABSENT from the published JWKS, breaking ALL downstream JwtBearer token validation that uses Authority-based key discovery (the downstream resolves keys by kid from JWKS; missing kid = signature validation fails for every minted token). Unwrap to RsaSecurityKey via cert.GetRSAPrivateKey() before passing it as the signing key — signing requires the PRIVATE key; using the public-key unwrap would pass validation but fail at runtime when minting.");
+        else if (!IsSymmetric(credentials.Key) && TrellisSigningKeyValidation.IsRequiredAlgorithm(credentials.Algorithm)
             && !TrellisSigningKeyValidation.IsAlgorithmSupportedForKey(credentials.Key, credentials.Algorithm))
-            failures.Add($"{member}.Algorithm '{credentials.Algorithm}' is not usable with the {member}.Key type ({credentials.Key.GetType().Name}); an RSA key requires an RSA algorithm (RS256/384/512 or PS256/384/512) and an ECDSA key requires an EC algorithm (ES256/384/512). Signing would fail at mint time.");
+            failures.Add($"{member}.Algorithm '{credentials.Algorithm}' is not usable with the {member}.Key type ({credentials.Key.GetType().Name}); the configured crypto provider cannot create a {TrellisSigningKeyValidation.RequiredAlgorithm} signer for this key. Signing would fail at mint time.");
     }
 
     private static void ValidatePreviousKey(SecurityKey? key, int index, List<string> failures)
     {
         if (key is null)
         {
-            failures.Add($"{nameof(TrellisActorForwardingOptions.PreviousSigningKeys)}[{index}] is null; remove the entry or replace it with a non-null asymmetric key.");
+            failures.Add($"{nameof(TrellisActorForwardingOptions.PreviousSigningKeys)}[{index}] is null; remove the entry or replace it with a non-null RsaSecurityKey.");
             return;
         }
 
@@ -144,7 +146,7 @@ internal sealed class TrellisActorForwardingOptionsValidator
             failures.Add($"{nameof(TrellisActorForwardingOptions.PreviousSigningKeys)}[{index}] is a symmetric key ({key.GetType().Name}{DescribeJwkKty(key)}); v1 rejects symmetric signing keys in the rotation ring (the JWKS endpoint refuses to publish them and the discovery story would silently break).");
 
         if (!IsSymmetric(key) && !IsSupportedAsymmetricKey(key))
-            failures.Add($"{nameof(TrellisActorForwardingOptions.PreviousSigningKeys)}[{index}] is a {key.GetType().Name}; v1 supports RsaSecurityKey and ECDsaSecurityKey in the rotation ring. X509SecurityKey and JsonWebKey are rejected — unwrap to RsaSecurityKey / ECDsaSecurityKey before adding to PreviousSigningKeys.");
+            failures.Add($"{nameof(TrellisActorForwardingOptions.PreviousSigningKeys)}[{index}] is a {key.GetType().Name}; v1 supports RsaSecurityKey only in the rotation ring, because the contract pins {TrellisSigningKeyValidation.RequiredAlgorithm} and no other key family can produce it. ECDsaSecurityKey is rejected for that reason. X509SecurityKey and JsonWebKey are rejected because the JWKS builder cannot serialize them — unwrap to RsaSecurityKey before adding to PreviousSigningKeys.");
     }
 
     // Key classification is centralized in TrellisSigningKeyValidation so the startup
