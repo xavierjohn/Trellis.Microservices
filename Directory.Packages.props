@@ -1,7 +1,7 @@
 ﻿<Project>
   <PropertyGroup>
     <!-- Upstream Trellis framework version. Single source of truth for every Trellis.* pin below. -->
-    <TrellisVersion>3.0.0-alpha.432</TrellisVersion>
+    <TrellisVersion>3.0.0-alpha.447</TrellisVersion>
   </PropertyGroup>
 
   <!--
