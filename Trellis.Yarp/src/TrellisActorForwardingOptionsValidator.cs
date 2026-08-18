@@ -135,7 +135,7 @@ internal sealed class TrellisActorForwardingOptionsValidator
     {
         if (key is null)
         {
-            failures.Add($"{nameof(TrellisActorForwardingOptions.PreviousSigningKeys)}[{index}] is null; remove the entry or replace it with a non-null asymmetric key.");
+            failures.Add($"{nameof(TrellisActorForwardingOptions.PreviousSigningKeys)}[{index}] is null; remove the entry or replace it with a non-null RsaSecurityKey.");
             return;
         }
 

@@ -36,8 +36,9 @@ public sealed class TrellisSigningKeyRing
 {
     /// <summary>
     /// The credential used to sign newly minted tokens. Its <see cref="SigningCredentials.Key"/>
-    /// MUST be asymmetric with a non-empty <c>kid</c>, and its public component MUST be present
-    /// in <see cref="ValidationKeys"/>.
+    /// MUST be an <see cref="RsaSecurityKey"/> with a non-empty <c>kid</c>, its
+    /// <see cref="SigningCredentials.Algorithm"/> MUST be <c>RS256</c>, and its public component
+    /// MUST be present in <see cref="ValidationKeys"/>.
     /// </summary>
     public required SigningCredentials Current { get; init; }
 
@@ -45,7 +46,7 @@ public sealed class TrellisSigningKeyRing
     /// Every key to publish in the JWKS document for downstream validation — the current key
     /// plus any retiring keys still inside their rotation overlap window. MUST include the
     /// public component of <see cref="Current"/>'s key (matched by <c>kid</c>). Every entry
-    /// MUST be asymmetric with a unique, non-empty <c>kid</c>.
+    /// MUST be an <see cref="RsaSecurityKey"/> with a unique, non-empty <c>kid</c>.
     /// </summary>
     /// <remarks>
     /// Defensively copied on assignment so the snapshot is structurally immutable: a provider that

@@ -87,7 +87,7 @@ public sealed class TrellisActorForwardingOptions
 
     /// <summary>
     /// Previous-generation signing keys still trusted during a rotation overlap window.
-    /// Each entry MUST be asymmetric and MUST have a non-empty <c>kid</c>. These keys
+    /// Each entry MUST be an <see cref="RsaSecurityKey"/> and MUST have a non-empty <c>kid</c>. These keys
     /// are NOT used to mint new tokens (the current <see cref="SigningCredentials"/>
     /// signs everything), but they ARE published in JWKS so downstream services
     /// validating tokens minted by the previous generation continue to succeed during

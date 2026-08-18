@@ -106,7 +106,8 @@ internal sealed class ValidatingTrellisSigningKeyProvider : ITrellisSigningKeyPr
     private static InvalidOperationException NoKnownGoodRing(int failureCount) =>
         new(
             $"ITrellisSigningKeyProvider returned an invalid signing-key ring ({failureCount} validation failure(s)) and there is no previously validated ring to fall back to. " +
-            "The ring MUST contain asymmetric keys with unique non-empty kids and MUST publish the current signing key's kid exactly once. Fix the provider configuration.");
+            $"Every key in the ring MUST be an RsaSecurityKey with a unique non-empty kid, Current.Algorithm MUST be {TrellisSigningKeyValidation.RequiredAlgorithm} (ECDsa keys and all other algorithms are rejected — the contract is pinned to match the consumer's ValidAlgorithms), " +
+            "and the current signing key's kid MUST be published in ValidationKeys exactly once. Fix the provider configuration.");
 
     /// <summary>
     /// A ring paired with the outcome of validating it. Held in a single volatile field so the

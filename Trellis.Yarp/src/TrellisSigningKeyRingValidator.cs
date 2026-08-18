@@ -41,7 +41,7 @@ internal static class TrellisSigningKeyRingValidator
         var current = ring.Current;
         if (current is null)
         {
-            failures.Add("Current is required — an asymmetric SigningCredentials with a non-empty kid whose public key is published in ValidationKeys.");
+            failures.Add($"Current is required — an {TrellisSigningKeyValidation.RequiredAlgorithm} SigningCredentials over an RsaSecurityKey with a non-empty kid, whose public key is published in ValidationKeys.");
         }
         else
         {
@@ -148,7 +148,7 @@ internal static class TrellisSigningKeyRingValidator
     {
         if (key is null)
         {
-            failures.Add($"{context} is null; every key in the ring MUST be a non-null asymmetric key with a non-empty kid.");
+            failures.Add($"{context} is null; every key in the ring MUST be a non-null RsaSecurityKey with a non-empty kid.");
             return;
         }
 
