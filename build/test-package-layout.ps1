@@ -1,5 +1,4 @@
-﻿#!/usr/bin/env pwsh
-<#
+﻿<#
 .SYNOPSIS
     Verifies that packed NuGet content lands at clean, well-formed paths.
 
