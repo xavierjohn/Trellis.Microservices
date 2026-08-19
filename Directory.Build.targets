@@ -6,13 +6,38 @@
     Mirrors the convention in xavierjohn/Trellis so consumers using packages from
     either repo see the same `trellis/trellis-api-<name>.md` layout in their NuGet
     cache for LLM-discoverability.
+
+    WHICH .targets a package ships is decided by DEPENDENCY TOPOLOGY, not by package
+    name. The ~200-line directory walk that decides where files land lives in
+    Trellis.ApiReference.targets and ships with Trellis.Core:
+
+      * Trellis.Core IS in the package's transitive closure (Trellis.Microservices.AspNetCore,
+        Trellis.Yarp) -> ship Trellis.ApiReference.Payload.targets alone. The walk arrives
+        with Core, and keeping the copy logic in one package is what stops this repo from
+        silently drifting onto a stale copy of it.
+
+      * Trellis.Core is NOT in the closure (Trellis.Microservices.Abstractions has no
+        package dependencies at all) -> ship Trellis.ApiReference.targets, which carries the
+        copy logic as well as the payload. Shipping payload alone would mean a project
+        referencing only that package receives nothing, because no copy logic would exist
+        anywhere in its build.
+
+    Opt in to the copy-logic shape with <TrellisShipsApiReferenceCopyLogic>true</...> and
+    re-check it whenever a package's dependencies change. Trellis.ApiReference.targets is a
+    verbatim copy of the file in xavierjohn/Trellis; fix bugs there and re-copy rather than
+    editing it here.
   -->
+  <PropertyGroup Condition="'$(TrellisApiRefName)' != ''">
+    <_TrellisApiReferenceTargetsFile Condition="'$(TrellisShipsApiReferenceCopyLogic)' == 'true'">$(MSBuildThisFileDirectory)build\Trellis.ApiReference.targets</_TrellisApiReferenceTargetsFile>
+    <_TrellisApiReferenceTargetsFile Condition="'$(_TrellisApiReferenceTargetsFile)' == ''">$(MSBuildThisFileDirectory)build\Trellis.ApiReference.Payload.targets</_TrellisApiReferenceTargetsFile>
+  </PropertyGroup>
+
   <ItemGroup Condition="'$(TrellisApiRefName)' != ''">
     <None Include="$(MSBuildThisFileDirectory)docs\docfx_project\api_reference\trellis-api-$(TrellisApiRefName).md"
           Pack="true" PackagePath="trellis\" />
-    <None Include="$(MSBuildThisFileDirectory)build\Trellis.ApiReference.targets"
+    <None Include="$(_TrellisApiReferenceTargetsFile)"
           Pack="true" PackagePath="build\$(PackageId).targets" />
-    <None Include="$(MSBuildThisFileDirectory)build\Trellis.ApiReference.targets"
+    <None Include="$(_TrellisApiReferenceTargetsFile)"
           Pack="true" PackagePath="buildTransitive\$(PackageId).targets" />
   </ItemGroup>
 

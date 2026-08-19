@@ -9,6 +9,15 @@
          discover it without a separate doc fetch. See Directory.Build.targets. -->
     <TrellisApiRefName>microservices-abstractions</TrellisApiRefName>
 
+    <!--
+      This package has NO package dependencies at all, so Trellis.Core - and with it the
+      Trellis.ApiReference.targets copy logic - is not in its transitive closure. It must
+      therefore ship the copy logic itself, or a project referencing only this package
+      would receive no documentation whatsoever. Trellis.Microservices.AspNetCore and
+      Trellis.Yarp depend on Trellis.Core and so ship payload only.
+    -->
+    <TrellisShipsApiReferenceCopyLogic>true</TrellisShipsApiReferenceCopyLogic>
+
     <!-- The foundational package every microservices consumer references transitively;
          ship the cookbook into .github/ once via this package. See Directory.Build.targets. -->
     <TrellisShipsCookbook>true</TrellisShipsCookbook>

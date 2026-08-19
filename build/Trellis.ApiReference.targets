@@ -25,6 +25,21 @@
     ItemGroup condition would see the final property value, not the per-import
     value.
   -->
+  <!--
+    Marker for satellite packages: build/Trellis.ApiReference.Payload.targets declares payload
+    items but carries no copy logic, and relies on this file arriving with Trellis.Core. This
+    file is packed under BOTH build\ and buildTransitive\, so the NuGet default of making
+    `build` private - which surfaces as exclude="Build,Analyzers" on the packed dependency -
+    does NOT suppress it: buildTransitive is a distinct asset group and still flows to
+    transitive consumers. Suppressing it takes ExcludeAssets="buildTransitive" or "all" on the
+    Trellis.Core reference. In that case the items would be declared with nothing to consume
+    them and the docs would silently fail to appear. Payload.targets warns on that, and needs
+    this property to tell it apart from a healthy build.
+  -->
+  <PropertyGroup>
+    <TrellisApiReferenceCopyLogicPresent>true</TrellisApiReferenceCopyLogicPresent>
+  </PropertyGroup>
+
   <ItemGroup>
     <TrellisApiReference Include="$(MSBuildThisFileDirectory)..\trellis\*.md" />
   </ItemGroup>
@@ -40,10 +55,10 @@
     Exists() checks both files and directories.
   -->
   <PropertyGroup Condition="'$(TrellisApiReferenceRoot)' != ''">
-    <_TrellisOutputDir>$([MSBuild]::EnsureTrailingSlash($([System.IO.Path]::Combine('$(TrellisApiReferenceRoot)', '.github'))))</_TrellisOutputDir>
+    <_TrellisApiOutputDir>$([MSBuild]::EnsureTrailingSlash($([System.IO.Path]::Combine('$(TrellisApiReferenceRoot)', '.github'))))</_TrellisApiOutputDir>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(_TrellisOutputDir)' == ''">
+  <PropertyGroup Condition="'$(_TrellisApiOutputDir)' == ''">
     <_Tp0>$(MSBuildProjectDirectory)</_Tp0>
     <_Tp1>$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(_Tp0)', '..'))))</_Tp1>
     <_Tp2>$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(_Tp1)', '..'))))</_Tp2>
@@ -129,7 +144,7 @@
     <_TrellisNearestGitHub Condition="'$(_TrellisNearestGitHub)' == '' AND '$(_NoGitLt10)' == 'true' AND $([System.IO.Directory]::Exists('$(_Tp10GitHub)'))">$(_Tp10GitHub)</_TrellisNearestGitHub>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(_TrellisOutputDir)' == ''">
+  <PropertyGroup Condition="'$(_TrellisApiOutputDir)' == ''">
     <!--
       Require _TrellisRepoRoot to be non-empty here too: if no .git was found
       within the 11 scanned levels, _NoGitLtN never gets falsified and would
@@ -137,8 +152,8 @@
       any known repo. Without a confirmed .git boundary there is nothing to
       bound the search by, so fall through to the "not found" message instead.
     -->
-    <_TrellisOutputDir Condition="'$(_TrellisRepoRoot)' != '' AND '$(_TrellisNearestGitHub)' != ''">$([MSBuild]::EnsureTrailingSlash('$(_TrellisNearestGitHub)'))</_TrellisOutputDir>
-    <_TrellisOutputDir Condition="'$(_TrellisOutputDir)' == '' AND '$(_TrellisRepoRoot)' != ''">$([MSBuild]::EnsureTrailingSlash($([System.IO.Path]::Combine('$(_TrellisRepoRoot)', '.github'))))</_TrellisOutputDir>
+    <_TrellisApiOutputDir Condition="'$(_TrellisRepoRoot)' != '' AND '$(_TrellisNearestGitHub)' != ''">$([MSBuild]::EnsureTrailingSlash('$(_TrellisNearestGitHub)'))</_TrellisApiOutputDir>
+    <_TrellisApiOutputDir Condition="'$(_TrellisApiOutputDir)' == '' AND '$(_TrellisRepoRoot)' != ''">$([MSBuild]::EnsureTrailingSlash($([System.IO.Path]::Combine('$(_TrellisRepoRoot)', '.github'))))</_TrellisApiOutputDir>
   </PropertyGroup>
 
   <!--
@@ -162,17 +177,17 @@
     </ItemGroup>
     <Message Text="Trellis API references not copied: .git not found within 11 levels of $(MSBuildProjectDirectory). Set TrellisApiReferenceRoot to override."
              Importance="Low"
-             Condition="'$(_TrellisOutputDir)' == ''" />
-    <MakeDir Directories="$(_TrellisOutputDir)"
+             Condition="'$(_TrellisApiOutputDir)' == ''" />
+    <MakeDir Directories="$(_TrellisApiOutputDir)"
              ContinueOnError="WarnAndContinue"
-             Condition="'$(_TrellisOutputDir)' != '' AND !Exists('$(_TrellisOutputDir)')" />
+             Condition="'$(_TrellisApiOutputDir)' != '' AND !Exists('$(_TrellisApiOutputDir)')" />
     <Copy SourceFiles="@(_TrellisApiReferenceUnique)"
-          DestinationFolder="$(_TrellisOutputDir)"
+          DestinationFolder="$(_TrellisApiOutputDir)"
           SkipUnchangedFiles="true"
           Retries="3"
           RetryDelayMilliseconds="200"
           ContinueOnError="WarnAndContinue"
-          Condition="'$(_TrellisOutputDir)' != ''" />
+          Condition="'$(_TrellisApiOutputDir)' != ''" />
   </Target>
 
   <!--
