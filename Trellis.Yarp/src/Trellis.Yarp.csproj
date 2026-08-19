@@ -27,7 +27,7 @@
     <InternalsVisibleTo Include="Trellis.Yarp.Tests" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="../NUGET_README.md" Pack="true" PackagePath="\" />
+    <None Include="../NUGET_README.md" Pack="true" PackagePath="/" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Yarp.ReverseProxy" />
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />

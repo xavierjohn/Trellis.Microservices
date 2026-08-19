@@ -86,6 +86,14 @@ jobs:
       if: ${{ success() && !github.base_ref }}
       run: dotnet pack Trellis.Microservices.slnx --no-build --verbosity normal -c Release -o artifacts/
 
+    # Deliberately unconditional. The declaration check is platform-independent and must run on
+    # pull requests, where Pack is skipped; the packed-entry check then reports SKIP. On pushes to
+    # main, artifacts/ exists and both checks run against the real Linux-packed bytes - the only
+    # place the malformed "trellis//<name>.md" path can actually appear.
+    - name: Verify package layout
+      shell: pwsh
+      run: pwsh build/test-package-layout.ps1 -ArtifactsPath artifacts
+
     - name: Upload artifacts
       uses: actions/upload-artifact@v7
       if: ${{ success() && !github.base_ref }}

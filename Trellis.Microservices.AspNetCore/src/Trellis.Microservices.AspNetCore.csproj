@@ -11,7 +11,7 @@
     <InternalsVisibleTo Include="Trellis.Microservices.AspNetCore.Tests" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="../NUGET_README.md" Pack="true" PackagePath="\" />
+    <None Include="../NUGET_README.md" Pack="true" PackagePath="/" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <!-- Upstream Trellis primitives + actor-provider interfaces from xavierjohn/Trellis. -->
     <PackageReference Include="Trellis.Core" />
