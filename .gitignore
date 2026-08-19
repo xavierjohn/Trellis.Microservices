@@ -362,5 +362,7 @@ MigrationBackup/
 # API reference markdown files synced from upstream Trellis.* NuGets to .github/
 # by the build/Trellis.ApiReference.targets mechanism. These are build artifacts that
 # track the upstream package version; do not commit them. Run dotnet build to populate.
-.github/trellis-api-*.md
+# Matches every synced doc, not just trellis-api-*: upstream also ships companions such
+# as trellis-start-here.md and trellis-value-object-taxonomy.md.
+.github/trellis-*.md
 
