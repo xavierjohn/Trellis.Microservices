@@ -34,11 +34,11 @@
 
   <ItemGroup Condition="'$(TrellisApiRefName)' != ''">
     <None Include="$(MSBuildThisFileDirectory)docs\docfx_project\api_reference\trellis-api-$(TrellisApiRefName).md"
-          Pack="true" PackagePath="trellis\" />
+          Pack="true" PackagePath="trellis/" />
     <None Include="$(_TrellisApiReferenceTargetsFile)"
-          Pack="true" PackagePath="build\$(PackageId).targets" />
+          Pack="true" PackagePath="build/$(PackageId).targets" />
     <None Include="$(_TrellisApiReferenceTargetsFile)"
-          Pack="true" PackagePath="buildTransitive\$(PackageId).targets" />
+          Pack="true" PackagePath="buildTransitive/$(PackageId).targets" />
   </ItemGroup>
 
   <!--
@@ -46,10 +46,16 @@
     Trellis.Microservices.Abstractions (the foundational package every
     consumer references). Opt in per package by setting
     <TrellisShipsCookbook>true</TrellisShipsCookbook>.
+
+    PackagePath uses forward slashes deliberately. On Windows a trailing backslash is a
+    directory marker and the doc lands at trellis/<name>.md, but on Linux the backslash is
+    not a separator: it normalizes and NuGet appends its own, producing the malformed
+    "trellis//<name>.md". That still satisfies a trellis/*.md glob and still delivers, so
+    the defect reached published packages unnoticed. Keep these forward slashes.
   -->
   <ItemGroup Condition="'$(TrellisShipsCookbook)' == 'true'">
     <None Include="$(MSBuildThisFileDirectory)docs\docfx_project\api_reference\trellis-api-microservices-cookbook.md"
-          Pack="true" PackagePath="trellis\" />
+          Pack="true" PackagePath="trellis/" />
   </ItemGroup>
 
   <Target Name="LintApiReference"

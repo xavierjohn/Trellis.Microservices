@@ -68,7 +68,7 @@
   </PropertyGroup>
 
   <ItemGroup Condition=" '$(IsTestProject)' == 'false' ">
-    <None Include="$(MSBuildThisFileDirectory)icon.png" Pack="true" PackagePath="\" />
+    <None Include="$(MSBuildThisFileDirectory)icon.png" Pack="true" PackagePath="/" />
   </ItemGroup>
 
   <ImportGroup Condition=" '$(IsTestProject)' == 'true' ">
