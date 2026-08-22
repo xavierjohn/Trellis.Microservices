@@ -35,7 +35,7 @@
 
   <!-- Sample (Aspire-orchestrated examples/Sample/). Not consumed by packed libraries. -->
   <ItemGroup>
-    <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.4.6" />
+    <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.5.2" />
     <!-- OpenTelemetry core and the contrib Instrumentation.* packages all have a matching
          1.17.0 release, so the whole set is unified. The contrib packages version
          independently and can lag core; when they do, pin them to their own latest rather
