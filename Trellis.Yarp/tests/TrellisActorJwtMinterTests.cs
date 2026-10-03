@@ -166,7 +166,7 @@ public sealed class TrellisActorJwtMinterTests
         permissionClaims.Should().NotContain(v => v.Contains(','),
             "permissions MUST NOT be comma-joined — the consumer's StrictClaimShape check rejects values containing commas");
         permissionClaims.Should().NotContain(v => v.StartsWith('[') || v.StartsWith('{'),
-            "permissions MUST NOT be JSON-stringified — the consumer's StrictClaimShape check rejects values starting with '[' or '{'");
+            "permissions MUST NOT be JSON-stringified — the consumer's StrictClaimShape check rejects values starting with '[' or '{{'");
     }
 
     [Fact]
