@@ -1,0 +1,60 @@
+﻿<Project>
+  <UsingTask TaskName="ProjectTrellisGuidanceLinks" TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Documents ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <References ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <OutputDirectory ParameterType="System.String" Required="true" />
+      <ProjectedDocuments ParameterType="Microsoft.Build.Framework.ITaskItem[]" Output="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System" />
+      <Using Namespace="System.Collections.Generic" />
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Text" />
+      <Using Namespace="Microsoft.Build.Utilities" />
+      <Code Type="Method" Language="cs"><![CDATA[
+        public override bool Execute()
+        {
+            const string sourcePrefix = "https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/";
+            var items = new List<Microsoft.Build.Framework.ITaskItem>();
+            Directory.CreateDirectory(OutputDirectory);
+            foreach (var document in Documents)
+            {
+                var source = document.GetMetadata("FullPath");
+                var text = File.ReadAllText(source);
+                foreach (var reference in References)
+                {
+                    if (reference.GetMetadata("PackageId") != "Trellis.Core")
+                        continue;
+
+                    var url = sourcePrefix + Path.GetFileName(reference.GetMetadata("DocumentPath"));
+                    text = text.Replace("](" + url + "#", "](" + reference.ItemSpec + "#")
+                        .Replace("](" + url + ")", "](" + reference.ItemSpec + ")");
+                }
+
+                var destination = Path.Combine(OutputDirectory, Path.GetFileName(source));
+                File.WriteAllText(destination, text, new UTF8Encoding(true));
+                var item = new TaskItem(document);
+                item.ItemSpec = destination;
+                items.Add(item);
+            }
+            ProjectedDocuments = items.ToArray();
+            return true;
+        }
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="ProjectTrellisPackageGuidance" BeforeTargets="GeneratePackageGuidanceManifestFromItems"
+          Condition="'@(PackageGuidanceItem)' != '' AND '$(IsPackable)' != 'false'">
+    <ProjectTrellisGuidanceLinks Documents="@(PackageGuidanceItem)" References="@(PackageGuidanceReference)"
+        OutputDirectory="$([MSBuild]::NormalizePath($(MSBuildProjectDirectory), $(IntermediateOutputPath), agentdocs))">
+      <Output TaskParameter="ProjectedDocuments" ItemName="_TrellisProjectedGuidance" />
+    </ProjectTrellisGuidanceLinks>
+    <ItemGroup>
+      <PackageGuidanceItem Remove="@(PackageGuidanceItem)" />
+      <PackageGuidanceItem Include="@(_TrellisProjectedGuidance)" />
+    </ItemGroup>
+  </Target>
+</Project>

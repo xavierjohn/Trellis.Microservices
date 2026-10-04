@@ -53,6 +53,26 @@ Full reference: [`trellis-api-internal-jwt.md`](../docs/docfx_project/api_refere
 
 End-to-end recipe: [`trellis-api-microservices-cookbook.md`](../docs/docfx_project/api_reference/trellis-api-microservices-cookbook.md).
 
+## Optional AgentDocs setup
+
+The NuGet package includes a versioned API reference. Restoring the package does
+not activate it. Consumers can install the local tool, initialize their restored
+graph, approve `Trellis.Microservices.AspNetCore` in `.agentdocs/policy.json`,
+and synchronize:
+
+```powershell
+dotnet new tool-manifest --output .config
+dotnet tool install Trellis.AgentDocs --version 0.1.0-preview.20 --tool-manifest .config/dotnet-tools.json
+dotnet tool run agentdocs init <solution-or-project>
+dotnet tool run agentdocs sync
+```
+
+Companion links use declared cross-package references, not copied guides.
+Approve the other trusted, restored guidance publishers as needed; `Trellis.Core`
+owns the upstream guides. References never add dependencies or grant approval.
+Unavailable or unapproved targets become notices; use
+`dotnet tool run agentdocs sync --strict-references` to reject them instead.
+
 ## Dependencies
 
 - [`Trellis.Microservices.Abstractions`](../docs/docfx_project/api_reference/trellis-api-microservices-abstractions.md#use-this-file-when) — shared `TrellisInternalJwtClaimNames` contract literals (transitive).

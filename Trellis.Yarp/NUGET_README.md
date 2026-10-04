@@ -19,3 +19,28 @@ Signing-key compromise = full identity spoof until key revocation propagates. Mi
 **Not AOT-compatible** (YARP itself is not AOT-clean).
 
 See the [Trellis Microservices cookbook](https://github.com/xavierjohn/Trellis.Microservices/blob/main/docs/docfx_project/api_reference/trellis-api-microservices-cookbook.md) (Recipe 2 — "Microservices behind YARP, end-to-end") for the full operational walkthrough.
+
+## Optional AgentDocs setup
+
+This package includes a versioned API reference, but restoring it does not
+install agent instructions. To opt in, restore your consuming project or
+solution, then run from its Git root:
+
+```powershell
+dotnet new tool-manifest --output .config
+dotnet tool install Trellis.AgentDocs --version 0.1.0-preview.20 --tool-manifest .config/dotnet-tools.json
+dotnet tool run agentdocs init <solution-or-project>
+```
+
+If the repository already has `.config/dotnet-tools.json`, reuse it. Restoring
+the package never activates its guide: `init` lists `Trellis.Yarp` as pending
+and prints the package IDs to add to `approvedPackages` in
+`.agentdocs/policy.json`. Add the package IDs you trust, then run
+`dotnet tool run agentdocs sync`. After a package upgrade, restore and run
+`sync` again.
+
+Companion links use declared cross-package references, not copied guides.
+Approve the other trusted, restored guidance publishers as needed; `Trellis.Core`
+owns the upstream guides. References never add dependencies or grant approval.
+Unavailable or unapproved targets become notices; use
+`dotnet tool run agentdocs sync --strict-references` to reject them instead.

@@ -1,7 +1,7 @@
 ﻿<Project>
   <PropertyGroup>
     <!-- Upstream Trellis framework version. Single source of truth for every Trellis.* pin below. -->
-    <TrellisVersion>3.0.0-alpha.532</TrellisVersion>
+    <TrellisVersion>3.0.0-alpha.539</TrellisVersion>
   </PropertyGroup>
 
   <!--
@@ -16,6 +16,7 @@
   <!-- Runtime -->
   <ItemGroup>
     <PackageVersion Include="DotNet.ReproducibleBuilds" Version="2.0.5" />
+    <PackageVersion Include="Trellis.AgentDocs.Packaging" Version="0.1.0-preview.20" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />

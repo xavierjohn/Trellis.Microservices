@@ -1,62 +1,61 @@
 ﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 
-  <!--
-    Auto-pack API reference markdown and shared .targets for any Trellis package
-    that sets TrellisApiRefName (e.g., <TrellisApiRefName>yarp</TrellisApiRefName>).
-    Mirrors the convention in xavierjohn/Trellis so consumers using packages from
-    either repo see the same `trellis/trellis-api-<name>.md` layout in their NuGet
-    cache for LLM-discoverability.
-
-    WHICH .targets a package ships is decided by DEPENDENCY TOPOLOGY, not by package
-    name. The ~200-line directory walk that decides where files land lives in
-    Trellis.ApiReference.targets and ships with Trellis.Core:
-
-      * Trellis.Core IS in the package's transitive closure (Trellis.Microservices.AspNetCore,
-        Trellis.Yarp) -> ship Trellis.ApiReference.Payload.targets alone. The walk arrives
-        with Core, and keeping the copy logic in one package is what stops this repo from
-        silently drifting onto a stale copy of it.
-
-      * Trellis.Core is NOT in the closure (Trellis.Microservices.Abstractions has no
-        package dependencies at all) -> ship Trellis.ApiReference.targets, which carries the
-        copy logic as well as the payload. Shipping payload alone would mean a project
-        referencing only that package receives nothing, because no copy logic would exist
-        anywhere in its build.
-
-    Opt in to the copy-logic shape with <TrellisShipsApiReferenceCopyLogic>true</...> and
-    re-check it whenever a package's dependencies change. Trellis.ApiReference.targets is a
-    verbatim copy of the file in xavierjohn/Trellis; fix bugs there and re-copy rather than
-    editing it here.
-  -->
-  <PropertyGroup Condition="'$(TrellisApiRefName)' != ''">
-    <_TrellisApiReferenceTargetsFile Condition="'$(TrellisShipsApiReferenceCopyLogic)' == 'true'">$(MSBuildThisFileDirectory)build\Trellis.ApiReference.targets</_TrellisApiReferenceTargetsFile>
-    <_TrellisApiReferenceTargetsFile Condition="'$(_TrellisApiReferenceTargetsFile)' == ''">$(MSBuildThisFileDirectory)build\Trellis.ApiReference.Payload.targets</_TrellisApiReferenceTargetsFile>
-  </PropertyGroup>
-
+  <!-- Package versioned guidance for explicit, consumer-approved AgentDocs installation. -->
   <ItemGroup Condition="'$(TrellisApiRefName)' != ''">
-    <None Include="$(MSBuildThisFileDirectory)docs\docfx_project\api_reference\trellis-api-$(TrellisApiRefName).md"
-          Pack="true" PackagePath="trellis/" />
-    <None Include="$(_TrellisApiReferenceTargetsFile)"
-          Pack="true" PackagePath="build/$(PackageId).targets" />
-    <None Include="$(_TrellisApiReferenceTargetsFile)"
-          Pack="true" PackagePath="buildTransitive/$(PackageId).targets" />
+    <PackageGuidanceItem
+        Include="$(MSBuildThisFileDirectory)docs\docfx_project\api_reference\trellis-api-$(TrellisApiRefName).md"
+        PackagePath="trellis-api-$(TrellisApiRefName).md"
+        Usage="onDemand"
+        Description="$(TrellisApiRefDescription)" />
+    <PackageGuidanceReference Include="upstream/trellis-api-authorization.md"
+                              PackageId="Trellis.Core"
+                              DocumentPath="trellis/trellis-api-authorization.md" />
+    <PackageGuidanceReference Include="upstream/trellis-api-asp.md"
+                              PackageId="Trellis.Core"
+                              DocumentPath="trellis/trellis-api-asp.md" />
   </ItemGroup>
 
-  <!--
-    Cross-cutting microservices cookbook ships once, in
-    Trellis.Microservices.Abstractions (the foundational package every
-    consumer references). Opt in per package by setting
-    <TrellisShipsCookbook>true</TrellisShipsCookbook>.
+  <ItemGroup Condition="'$(TrellisApiRefName)' != '' AND '$(TrellisApiRefName)' != 'microservices-abstractions'">
+    <PackageGuidanceReference Include="trellis-api-microservices-abstractions.md"
+                              PackageId="Trellis.Microservices.Abstractions"
+                              DocumentPath="trellis-api-microservices-abstractions.md" />
+    <PackageGuidanceReference Include="trellis-api-microservices-cookbook.md"
+                              PackageId="Trellis.Microservices.Abstractions"
+                              DocumentPath="trellis-api-microservices-cookbook.md" />
+  </ItemGroup>
 
-    PackagePath uses forward slashes deliberately. On Windows a trailing backslash is a
-    directory marker and the doc lands at trellis/<name>.md, but on Linux the backslash is
-    not a separator: it normalizes and NuGet appends its own, producing the malformed
-    "trellis//<name>.md". That still satisfies a trellis/*.md glob and still delivers, so
-    the defect reached published packages unnoticed. Keep these forward slashes.
-  -->
+  <ItemGroup Condition="'$(TrellisApiRefName)' != '' AND '$(TrellisApiRefName)' != 'yarp'">
+    <PackageGuidanceReference Include="trellis-api-yarp.md"
+                              PackageId="Trellis.Yarp"
+                              DocumentPath="trellis-api-yarp.md" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TrellisApiRefName)' != '' AND '$(TrellisApiRefName)' != 'internal-jwt'">
+    <PackageGuidanceReference Include="trellis-api-internal-jwt.md"
+                              PackageId="Trellis.Microservices.AspNetCore"
+                              DocumentPath="trellis-api-internal-jwt.md" />
+  </ItemGroup>
+
+  <!-- The foundational Abstractions package also carries the cross-package cookbook. -->
   <ItemGroup Condition="'$(TrellisShipsCookbook)' == 'true'">
-    <None Include="$(MSBuildThisFileDirectory)docs\docfx_project\api_reference\trellis-api-microservices-cookbook.md"
-          Pack="true" PackagePath="trellis/" />
+    <PackageGuidanceItem
+        Include="$(MSBuildThisFileDirectory)docs\docfx_project\api_reference\trellis-api-microservices-cookbook.md"
+        PackagePath="trellis-api-microservices-cookbook.md"
+        Usage="onDemand"
+        Description="$(TrellisCookbookDescription)" />
+    <PackageGuidanceReference Include="upstream/trellis-api-core.md"
+                              PackageId="Trellis.Core"
+                              DocumentPath="trellis/trellis-api-core.md" />
+    <PackageGuidanceReference Include="upstream/trellis-api-servicedefaults.md"
+                              PackageId="Trellis.Core"
+                              DocumentPath="trellis/trellis-api-servicedefaults.md" />
+    <PackageGuidanceReference Include="upstream/trellis-api-cookbook.md"
+                              PackageId="Trellis.Core"
+                              DocumentPath="trellis/trellis-api-cookbook.md" />
   </ItemGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)build\Trellis.Guidance.Links.targets"
+          Condition="'$(TrellisApiRefName)' != ''" />
 
   <Target Name="LintApiReference"
           BeforeTargets="Build"

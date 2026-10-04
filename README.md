@@ -120,6 +120,34 @@ This repository ships JWT-minting and JWT-validation code that downstream servic
 | [`Trellis.Microservices.AspNetCore` API reference](docs/docfx_project/api_reference/trellis-api-internal-jwt.md) | Consumer-side: options, validator rules, migration note for early adopters. |
 | [`.github/copilot-instructions.md`](.github/copilot-instructions.md) | Repository conventions and the "P4 invariants — never regress" checklist. |
 
+### Optional AgentDocs delivery
+
+Each NuGet package publishes its versioned API reference through the
+[AgentDocs guidance contract](https://github.com/xavierjohn/Trellis.AgentDocs.Packaging).
+`Trellis.Microservices.Abstractions` also publishes the cross-package cookbook
+without duplicating its companion guides. Declared references resolve to the
+approved publishers in the restored graph:
+
+Canonical source guides keep navigable upstream GitHub links. Packing generates
+package-only copies with declared `upstream/` virtual references, without
+modifying the source Markdown or duplicating Core's guides.
+
+| Publisher | Owned guides |
+|---|---|
+| `Trellis.Microservices.Abstractions` | Shared JWT contract and microservices cookbook |
+| `Trellis.Yarp` | Gateway API reference |
+| `Trellis.Microservices.AspNetCore` | Consumer API reference |
+| `Trellis.Core` | Upstream Core, Authorization, ASP, ServiceDefaults, and cookbook references |
+
+Restoring a package never installs instructions. Consumers explicitly install
+`Trellis.AgentDocs` `0.1.0-preview.20`, initialize their restored graph, approve
+trusted package IDs in `.agentdocs/policy.json`, and run `agentdocs sync`. A
+combined gateway/service solution can approve all four publishers above.
+References do not restore packages or grant approval; absent or unapproved
+targets produce notices. `agentdocs sync --strict-references` rejects unresolved
+references or missing target headings. The package READMEs contain the exact
+setup commands. Restore and synchronize again after each package upgrade.
+
 ## Related repositories
 
 - [`xavierjohn/Trellis`](https://github.com/xavierjohn/Trellis) — the framework: `Result<T>`, `Maybe<T>`, value objects, DDD primitives, ASP.NET / EF Core / Mediator integration.

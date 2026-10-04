@@ -9,6 +9,7 @@
 
 # Documentation - enforce UTF-8 for emoji support
 *.md text encoding=utf-8
+docs/docfx_project/api_reference/*.md text eol=lf encoding=utf-8
 *.txt text encoding=utf-8
 
 # Configuration files

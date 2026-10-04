@@ -12,19 +12,29 @@ audience: [llm]
 # Trellis Microservices Cookbook
 
 - **Audience:** AI coding agents (and humans) writing Trellis microservice code from documentation alone.
-- **Purpose:** End-to-end recipes for the Path B (Trellis internal JWT) microservice pattern — gateway-side JWT minting, consumer-side actor hydration, the strict `AddJwtBearer` profile, key-rotation runbook, emergency revocation procedure, and the multi-tenant ABAC enforcement story. Recipes use the *exact* public surface listed in this repo's per-package API references; foundational Trellis primitives (`Actor`, `IActorProvider`, `Result<T>`) are documented in the [main Trellis repo](https://github.com/xavierjohn/Trellis/tree/main/docs/docfx_project/api_reference).
+- **Purpose:** End-to-end recipes for the Path B (Trellis internal JWT) microservice pattern — gateway-side JWT minting, consumer-side actor hydration, the strict `AddJwtBearer` profile, key-rotation runbook, emergency revocation procedure, and the multi-tenant ABAC enforcement story. Recipes use the *exact* public surface listed in this repo's per-package API references; foundational Trellis primitives (`Actor`, `IActorProvider`, `Result<T>`) are documented in the [upstream Core API reference](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-core.md#use-this-file-when).
 
 - **Companion docs (this repo):**
   - [trellis-api-yarp.md](trellis-api-yarp.md#use-this-file-when) — `TrellisActorForwardingOptions`, `AddTrellisActorForwarding`, `MapTrellisDiscoveryEndpoint`
   - [trellis-api-internal-jwt.md](trellis-api-internal-jwt.md#use-this-file-when) — `TrellisInternalJwtActorProvider`, `TrellisInternalJwtActorOptions`, `AddTrellisInternalJwtActorProvider`
   - [trellis-api-microservices-abstractions.md](trellis-api-microservices-abstractions.md#use-this-file-when) — `TrellisInternalJwtClaimNames`, contract version constants
 
-- **Required upstream docs (load from xavierjohn/Trellis):**
-  - [`trellis-api-authorization.md`](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-authorization.md) — `Actor`, `IActorProvider`, `IAuthorize`, `IAuthorizeResource<>` (every minted JWT hydrates back into an `Actor`)
-  - [`trellis-api-asp.md`](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-asp.md) — `ClaimsActorProvider`, `EntraActorProvider`, `EasyAuthClaimsActorProvider` (the gateway-side actor sources that feed `AddTrellisActorForwarding`; `EasyAuthClaimsActorProvider` + `AddEasyAuth()` — introduced upstream in Trellis `3.0.0-alpha.426` — hydrate the actor from Azure App Service / Container Apps "Easy Auth" principal headers)
-  - [`trellis-api-servicedefaults.md`](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-servicedefaults.md) — `AddTrellis`, `TrellisServiceBuilder` (the composition root; for the internal-JWT consumer call `services.AddTrellisInternalJwtActorProvider(...)` directly — the `UseTrellisInternalJwtActor` slot was removed in v3 when the implementation moved to this repo)
+- **Required upstream docs (published by `Trellis.Core`):**
+  - [`trellis-api-authorization.md`](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-authorization.md#use-this-file-when) — `Actor`, `IActorProvider`, `IAuthorize`, `IAuthorizeResource<>` (every minted JWT hydrates back into an `Actor`)
+  - [`trellis-api-asp.md`](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-asp.md#use-this-file-when) — `ClaimsActorProvider`, `EntraActorProvider`, `EasyAuthClaimsActorProvider` (the gateway-side actor sources that feed `AddTrellisActorForwarding`; `EasyAuthClaimsActorProvider` + `AddEasyAuth()` — introduced upstream in Trellis `3.0.0-alpha.426` — hydrate the actor from Azure App Service / Container Apps "Easy Auth" principal headers)
+  - [`trellis-api-servicedefaults.md`](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-servicedefaults.md#use-this-file-when) — `AddTrellis`, `TrellisServiceBuilder` (the composition root; for the internal-JWT consumer call `services.AddTrellisInternalJwtActorProvider(...)` directly — the `UseTrellisInternalJwtActor` slot was removed in v3 when the implementation moved to this repo)
   - [`trellis-api-cookbook.md` Recipe 7](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-cookbook.md#recipe-7--authorization-iactorprovider--iauthorize--resource-based-auth) — the 3-path microservices framing (this repo implements Path B)
   - [`trellis-api-cookbook.md` Recipe 32](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-cookbook.md#recipe-32--hide-existence-with-authfailureexposurepolicyhideasnotfound) — `AuthFailureExposurePolicy.HideAsNotFound` (orthogonal Mediator behavior that pairs naturally with this repo's tenant-isolation pattern)
+
+The source links above remain navigable on GitHub. At pack time, generated
+copies replace them with `upstream/` virtual references to the documents owned
+by `Trellis.Core`; the source Markdown is not modified, and no upstream guides
+are copied into Microservices packages. AgentDocs resolves the packaged links
+from the restored package version only after explicit approval.
+Companion guides likewise remain owned by their respective Microservices
+packages. If a target is absent or unapproved, the link leads to an unavailable
+notice; use `agentdocs sync --strict-references` to require every target and
+heading to resolve.
 
 ## How to read these recipes
 
@@ -500,7 +510,7 @@ When the gateway-to-microservice channel is already mTLS-authenticated or Manage
 - [trellis-api-yarp.md](trellis-api-yarp.md#use-this-file-when) — gateway-side mint surface; internal JWT contract v1 specification
 - [trellis-api-internal-jwt.md](trellis-api-internal-jwt.md#use-this-file-when) — consumer-side hydration surface; option-by-option reference for `TrellisInternalJwtActorOptions`
 - [trellis-api-microservices-abstractions.md](trellis-api-microservices-abstractions.md#use-this-file-when) — shared contract constants (`TrellisInternalJwtClaimNames`, contract version)
-- [Upstream `trellis-api-authorization.md`](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-authorization.md) — `Actor`, `IActorProvider`, `IAuthorize`, `IAuthorizeResource<>` (foundational types both sides build on)
+- [Upstream `trellis-api-authorization.md`](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-authorization.md#use-this-file-when) — `Actor`, `IActorProvider`, `IAuthorize`, `IAuthorizeResource<>` (foundational types both sides build on)
 - [Upstream Recipe 7](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-cookbook.md#recipe-7--authorization-iactorprovider--iauthorize--resource-based-auth) — 3-path microservices framing (this repo implements Path B)
 - [Upstream Recipe 32](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-cookbook.md#recipe-32--hide-existence-with-authfailureexposurepolicyhideasnotfound) — `AuthFailureExposurePolicy.HideAsNotFound` (pairs naturally with tenant isolation)
 - [Companion template repo](https://github.com/xavierjohn/Trellis.Microservices.Template) — working Project Tracker starter

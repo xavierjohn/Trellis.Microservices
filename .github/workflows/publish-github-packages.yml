@@ -1,4 +1,4 @@
-name: Publish to GitHub Packages
+﻿name: Publish to GitHub Packages
 
 # Publishes alpha NuGet packages to GitHub Packages on manual dispatch.
 # For stable nuget.org releases, use the publish-nuget-org.yml workflow instead.
@@ -48,6 +48,10 @@ jobs:
 
       - name: Pack
         run: dotnet pack Trellis.Microservices.slnx --no-build --configuration Release --output ./dist
+
+      - name: Verify packed AgentDocs guidance
+        shell: pwsh
+        run: pwsh build/test-guidance-packages.ps1 -PackagesDirectory ./dist
 
       - name: List packages
         run: |
