@@ -172,7 +172,7 @@ Before considering code work complete:
 2. Run `dotnet test` from the repository root.
 3. **Run `pwsh ./docs/docfx_project/api_reference/audit-stale-docs.ps1`** after any `.cs` or `.md` edit. The script flags deprecated vocabulary; CI `publish-docs` runs it as a separate step from `docfx build`, so docfx clean ≠ audit clean.
 4. Confirm public API changes are reflected in the API references AND the cookbook AND both package READMEs.
-5. For changed code, use a code-review agent with `model: gpt-5.5` before committing. The microservices security tier warrants 2-3 review rounds minimum on any change to minter / validator / provider code.
+5. For changed code, use a code-review agent with `model: gpt-5.6-sol` before committing. The microservices security tier warrants 2-3 review rounds minimum on any change to minter / validator / provider code.
 
 Documentation-only changes do not require a build or test run unless they affect generated docs, examples that are compiled, or documented public API behavior.
 
@@ -198,5 +198,5 @@ Before committing any changes after explicit approval:
 
 1. Confirm required validation has passed (build + test + **audit-stale-docs** + BOM).
 2. Confirm the diff contains only intended changes.
-3. Run a code-review agent with `model: gpt-5.5` for changed code; for changes touching minter/validator/provider, expect 2-3 review rounds.
+3. Run a code-review agent with `model: gpt-5.6-sol` for changed code; for changes touching minter/validator/provider, expect 2-3 review rounds.
 4. Present the final summary to the user.
