@@ -220,8 +220,8 @@ Semantics — security-tier, fail-closed and minimal:
 - [`trellis-api-microservices-abstractions.md`](trellis-api-microservices-abstractions.md#use-this-file-when) — `TrellisInternalJwtClaimNames` constants both sides reference.
 - [Recipe 1 — Strict `AddJwtBearer` profile](trellis-api-microservices-cookbook.md#recipe-1--strict-addjwtbearer-validation-profile-for-addtrellisinternaljwtactorprovider) — the mandatory companion `AddJwtBearer` config (`MapInboundClaims = false`, `TryAllIssuerSigningKeys = false`, `ValidAlgorithms = [activeAlg]`, `ClockSkew = 30s`).
 - [Recipe 2 — Microservices behind YARP, end-to-end](trellis-api-microservices-cookbook.md#recipe-2--microservices-behind-yarp-end-to-end) — full worked example including tenant-isolation defense-in-depth, multi-IdP namespacing, key rotation, emergency revocation.
-- Upstream [`trellis-api-asp.md`](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-asp.md) (in `xavierjohn/Trellis`) — `IProvideActorVaryHeaders`, the other actor-provider implementations (`ClaimsActorProvider`, `EntraActorProvider`, `DevelopmentActorProvider`), `CachingActorProvider` (composable with this provider).
-- Upstream [`trellis-api-authorization.md`](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-authorization.md) (in `xavierjohn/Trellis`) — `Actor`, `IActorProvider`, deny-overrides-allow contract integrity invariant, `IAuthorizeResource<T>` for tenant ABAC.
+- Upstream [`trellis-api-asp.md`](upstream/trellis-api-asp.md#use-this-file-when) (in `xavierjohn/Trellis`) — `IProvideActorVaryHeaders`, the other actor-provider implementations (`ClaimsActorProvider`, `EntraActorProvider`, `DevelopmentActorProvider`), `CachingActorProvider` (composable with this provider).
+- Upstream [`trellis-api-authorization.md`](upstream/trellis-api-authorization.md#use-this-file-when) (in `xavierjohn/Trellis`) — `Actor`, `IActorProvider`, deny-overrides-allow contract integrity invariant, `IAuthorizeResource<T>` for tenant ABAC.
 
 ## Migration note (preview-stage adopters of `Trellis.Asp.Authorization.TrellisInternalJwt*`)
 

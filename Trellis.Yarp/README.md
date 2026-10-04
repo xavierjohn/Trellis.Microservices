@@ -24,6 +24,25 @@ Pairs with the consumer-side `TrellisInternalJwtActorProvider` in [`Trellis.Micr
 
 The cookbook recipe ("Microservices behind YARP, end-to-end") documents the full operational runbook.
 
+## Optional AgentDocs setup
+
+The NuGet package includes a versioned API reference. Restoring the package does
+not activate it. Consumers can install the local tool, initialize their restored
+graph, approve `Trellis.Yarp` in `.agentdocs/policy.json`, and synchronize:
+
+```powershell
+dotnet new tool-manifest --output .config
+dotnet tool install Trellis.AgentDocs --version 0.1.0-preview.20 --tool-manifest .config/dotnet-tools.json
+dotnet tool run agentdocs init <solution-or-project>
+dotnet tool run agentdocs sync
+```
+
+Companion links use declared cross-package references, not copied guides.
+Approve the other trusted, restored guidance publishers as needed; `Trellis.Core`
+owns the upstream guides. References never add dependencies or grant approval.
+Unavailable or unapproved targets become notices; use
+`dotnet tool run agentdocs sync --strict-references` to reject them instead.
+
 ## When NOT to use
 
 - **AOT-only deployments.** `Trellis.Yarp` is not AOT-compatible (YARP itself is not AOT-clean). Use the Path A pass-through pattern (Recipe 7) instead — the gateway just forwards the validated external JWT.

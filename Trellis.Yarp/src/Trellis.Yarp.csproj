@@ -22,6 +22,7 @@
     <EnableAotAnalyzer>false</EnableAotAnalyzer>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <TrellisApiRefName>yarp</TrellisApiRefName>
+    <TrellisApiRefDescription>Open when configuring or changing Trellis YARP actor forwarding, JWT minting, discovery, JWKS publication, or signing-key rotation.</TrellisApiRefDescription>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Trellis.Yarp.Tests" />
@@ -32,6 +33,7 @@
     <PackageReference Include="Yarp.ReverseProxy" />
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
     <PackageReference Include="Microsoft.IdentityModel.Tokens" />
+    <PackageReference Include="Trellis.AgentDocs.Packaging" PrivateAssets="all" />
     <!-- Upstream Trellis primitives from xavierjohn/Trellis (Actor, IActorProvider, Result) -->
     <PackageReference Include="Trellis.Core" />
     <PackageReference Include="Trellis.Authorization" />

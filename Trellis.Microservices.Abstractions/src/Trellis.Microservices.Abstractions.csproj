@@ -5,22 +5,11 @@
     <Description>Shared contract constants for the Trellis internal-network JWT v1, paired with Trellis.Yarp (gateway-side minter) and Trellis.Microservices.AspNetCore (consumer-side actor provider). Ships only public string literals — AOT-compatible, no runtime dependencies.</Description>
     <PackageTags>trellis;microservices;jwt;contract;abstractions;ddd</PackageTags>
 
-    <!-- Auto-pack the API reference markdown to trellis/ folder in the .nupkg so LLMs
-         discover it without a separate doc fetch. See Directory.Build.targets. -->
+    <!-- Package versioned guidance for opt-in AgentDocs installation. -->
     <TrellisApiRefName>microservices-abstractions</TrellisApiRefName>
-
-    <!--
-      This package has NO package dependencies at all, so Trellis.Core - and with it the
-      Trellis.ApiReference.targets copy logic - is not in its transitive closure. It must
-      therefore ship the copy logic itself, or a project referencing only this package
-      would receive no documentation whatsoever. Trellis.Microservices.AspNetCore and
-      Trellis.Yarp depend on Trellis.Core and so ship payload only.
-    -->
-    <TrellisShipsApiReferenceCopyLogic>true</TrellisShipsApiReferenceCopyLogic>
-
-    <!-- The foundational package every microservices consumer references transitively;
-         ship the cookbook into .github/ once via this package. See Directory.Build.targets. -->
+    <TrellisApiRefDescription>Open when implementing or changing the Trellis internal JWT claim contract shared by gateways and downstream services.</TrellisApiRefDescription>
     <TrellisShipsCookbook>true</TrellisShipsCookbook>
+    <TrellisCookbookDescription>Open when configuring the end-to-end Trellis internal JWT flow, strict bearer validation, tenant isolation, or signing-key rotation.</TrellisCookbookDescription>
 
     <!-- AOT compatibility — this package ships only public const string literals. -->
     <IsAotCompatible>true</IsAotCompatible>
@@ -28,6 +17,7 @@
 
   <ItemGroup>
     <None Include="NUGET_README.md" Pack="true" PackagePath="/README.md" />
+    <PackageReference Include="Trellis.AgentDocs.Packaging" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>

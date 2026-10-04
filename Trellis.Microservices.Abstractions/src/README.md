@@ -51,6 +51,26 @@ These are enforced jointly by the gateway and consumer. A third-party implementa
 
 See the full spec in [`trellis-api-microservices-abstractions.md`](../../docs/docfx_project/api_reference/trellis-api-microservices-abstractions.md).
 
+## Optional AgentDocs setup
+
+The NuGet package includes versioned API reference guidance and the cross-package
+microservices cookbook. Restoring the package does not activate either guide.
+Consumers can install the local tool, initialize their restored graph, approve
+`Trellis.Microservices.Abstractions` in `.agentdocs/policy.json`, and synchronize:
+
+```powershell
+dotnet new tool-manifest --output .config
+dotnet tool install Trellis.AgentDocs --version 0.1.0-preview.20 --tool-manifest .config/dotnet-tools.json
+dotnet tool run agentdocs init <solution-or-project>
+dotnet tool run agentdocs sync
+```
+
+Companion links use declared cross-package references, not copied guides.
+Approve the other trusted, restored guidance publishers as needed; `Trellis.Core`
+owns the upstream guides. References never add dependencies or grant approval.
+Unavailable or unapproved targets become notices; use
+`dotnet tool run agentdocs sync --strict-references` to reject them instead.
+
 ## Version compatibility
 
 This package is **versioned independently** from the gateway and consumer packages. Within a single contract version (`CurrentContractVersion = "1"`), the literals are immutable and will not change in any v1.x release.

@@ -6,6 +6,7 @@
     <IsAotCompatible>true</IsAotCompatible>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <TrellisApiRefName>internal-jwt</TrellisApiRefName>
+    <TrellisApiRefDescription>Open when configuring or changing downstream Trellis internal JWT validation, actor hydration, required attributes, or claim-shape enforcement.</TrellisApiRefDescription>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Trellis.Microservices.AspNetCore.Tests" />
@@ -17,6 +18,7 @@
     <PackageReference Include="Trellis.Core" />
     <PackageReference Include="Trellis.Authorization" />
     <PackageReference Include="Trellis.Asp" />
+    <PackageReference Include="Trellis.AgentDocs.Packaging" PrivateAssets="all" />
     <!-- Strict AddJwtBearer profile composed by AddTrellisInternalJwtBearer (non-AOT path; annotated). -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
   </ItemGroup>
