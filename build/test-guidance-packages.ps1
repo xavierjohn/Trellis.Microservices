@@ -60,6 +60,19 @@ $packageVersions = @{}
 $documentHashes = @{}
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$sourceDirectory = Join-Path $repositoryRoot 'docs\docfx_project\api_reference'
+$upstreamSourcePrefix = 'https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/'
+foreach ($packageId in $references.Keys) {
+    foreach ($documentPath in $references[$packageId].Keys) {
+        $source = [System.IO.File]::ReadAllText((Join-Path $sourceDirectory $documentPath))
+        foreach ($link in [regex]::Matches($source, '\]\((?<path>[^:\s)#]+\.md)(?:#[^)]*)?\)')) {
+            $target = Join-Path $sourceDirectory $link.Groups['path'].Value
+            if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
+                throw "Canonical source link $documentPath/$($link.Groups['path'].Value) does not exist."
+            }
+        }
+    }
+}
 $props = [xml] (Get-Content -LiteralPath (Join-Path $repositoryRoot 'Directory.Packages.props') -Raw)
 $toolNode = $props.SelectSingleNode('//PackageVersion[@Include="Trellis.AgentDocs.Packaging"]')
 if (-not $toolNode) {
@@ -141,6 +154,24 @@ try {
                 $documentEntry = $archive.GetEntry($documentPath)
                 if (-not $documentEntry) {
                     throw "$packageId must pack $documentPath."
+                }
+
+                $expectedText = [System.IO.File]::ReadAllText((Join-Path $sourceDirectory $documentPath))
+                foreach ($referencePath in $expectedReferences.Keys) {
+                    if ($expectedReferences[$referencePath] -ceq 'Trellis.Core') {
+                        $expectedText = $expectedText.Replace(
+                            "$upstreamSourcePrefix$([System.IO.Path]::GetFileName($referencePath))",
+                            $referencePath)
+                    }
+                }
+                $documentReader = [System.IO.StreamReader]::new($documentEntry.Open())
+                try {
+                    if ($documentReader.ReadToEnd() -cne $expectedText) {
+                        throw "$packageId/$documentPath must pack the source with only declared upstream links projected."
+                    }
+                }
+                finally {
+                    $documentReader.Dispose()
                 }
 
                 $documentBytes = [System.IO.MemoryStream]::new()

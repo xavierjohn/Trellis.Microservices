@@ -128,6 +128,10 @@ Each NuGet package publishes its versioned API reference through the
 without duplicating its companion guides. Declared references resolve to the
 approved publishers in the restored graph:
 
+Canonical source guides keep navigable upstream GitHub links. Packing generates
+package-only copies with declared `upstream/` virtual references, without
+modifying the source Markdown or duplicating Core's guides.
+
 | Publisher | Owned guides |
 |---|---|
 | `Trellis.Microservices.Abstractions` | Shared JWT contract and microservices cookbook |

@@ -54,6 +54,9 @@
                               DocumentPath="trellis/trellis-api-cookbook.md" />
   </ItemGroup>
 
+  <Import Project="$(MSBuildThisFileDirectory)build\Trellis.Guidance.Links.targets"
+          Condition="'$(TrellisApiRefName)' != ''" />
+
   <Target Name="LintApiReference"
           BeforeTargets="Build"
           Condition="'$(TrellisEnableApiReferenceLint)' == 'true' AND '$(DesignTimeBuild)' != 'true' AND '$(BuildingForLiveUnitTesting)' != 'true'">
