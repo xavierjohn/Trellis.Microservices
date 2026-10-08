@@ -1,7 +1,7 @@
 ﻿<Project>
   <PropertyGroup>
     <!-- Upstream Trellis framework version. Single source of truth for every Trellis.* pin below. -->
-    <TrellisVersion>3.0.0-alpha.539</TrellisVersion>
+    <TrellisVersion>3.0.0-alpha.554</TrellisVersion>
   </PropertyGroup>
 
   <!--
@@ -30,13 +30,13 @@
     <PackageVersion Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="8.23.0" />
     <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.23.0" />
     <PackageVersion Include="Nerdbank.GitVersioning" Version="3.10.94" />
-    <PackageVersion Include="Roslynator.Analyzers" Version="5.0.0" />
+    <PackageVersion Include="Roslynator.Analyzers" Version="5.0.1" />
     <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />
   </ItemGroup>
 
   <!-- Sample (Aspire-orchestrated examples/Sample/). Not consumed by packed libraries. -->
   <ItemGroup>
-    <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.6.0" />
+    <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.6.1" />
     <!-- OpenTelemetry core and contrib Instrumentation.* packages version independently
          and can differ. Pin each to its own latest stable release rather than forcing a
          "lockstep" version that has no matching release. -->
@@ -53,8 +53,8 @@
     <PackageVersion Include="FluentAssertions" Version="7.2.2" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.10.0" />
-    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2" />
-    <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.4.1" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.12.0" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.5.1" />
     <PackageVersion Include="Moq" Version="4.21.0" />
     <PackageVersion Include="xunit.v3" Version="4.0.1" />
   </ItemGroup>
