@@ -140,7 +140,7 @@ modifying the source Markdown or duplicating Core's guides.
 | `Trellis.Core` | Upstream Core, Authorization, ASP, ServiceDefaults, and cookbook references |
 
 Restoring a package never installs instructions. Consumers explicitly install
-`Trellis.AgentDocs` `0.1.0-preview.20`, initialize their restored graph, approve
+`Trellis.AgentDocs` `1.0.2`, initialize their restored graph, approve
 trusted package IDs in `.agentdocs/policy.json`, and run `agentdocs sync`. A
 combined gateway/service solution can approve all four publishers above.
 References do not restore packages or grant approval; absent or unapproved
