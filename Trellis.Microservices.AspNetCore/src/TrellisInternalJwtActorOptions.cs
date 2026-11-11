@@ -88,7 +88,10 @@ public sealed class TrellisInternalJwtActorOptions
     /// <summary>
     /// Map from logical attribute names exposed via <see cref="Actor.Attributes"/> to the
     /// underlying claim type emitted on the JWT. Use <see cref="ActorAttributes"/> constants for
-    /// well-known keys (<c>tenant_id</c>, <c>mfa</c>, <c>ip</c>). Empty by default — only
+    /// well-known keys (<see cref="ActorAttributes.TenantId"/> is <c>"tid"</c>,
+    /// <see cref="ActorAttributes.MfaAuthenticated"/> is <c>"mfa"</c>, <see cref="ActorAttributes.IpAddress"/>
+    /// is <c>"ip_address"</c>); any other key is your own, and every reader of <see cref="Actor.Attributes"/>
+    /// must use the same spelling. Empty by default — only
     /// attributes explicitly mapped flow into the resulting <see cref="Actor.Attributes"/>.
     /// </summary>
     public Dictionary<string, string> AttributeClaimMap { get; set; } = [];

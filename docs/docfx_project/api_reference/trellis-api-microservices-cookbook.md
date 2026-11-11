@@ -158,10 +158,13 @@ builder.Services.AddTrellisInternalJwtActorProvider(c =>
     c.ExpectedAudience = "incidents-service";
 });
 
+// App-owned loader: one class serves every command that authorizes against Incident.
+builder.Services.AddScoped<SharedResourceLoaderById<Incident, IncidentId>, IncidentResourceLoader>();
 builder.Services.AddTrellis(o => o
-    .UseResourceAuthorization()
-    .UseResourceAuthorization<UpdateIncidentCommand, Incident, Result<Unit>>());
+    .UseSharedResourceAuthorization<UpdateIncidentCommand, Incident, IncidentId, Result<Unit>>());
 ```
+
+`UseResourceAuthorization<TMessage, TResource, TResponse>()` registers the behavior but no resource loader, so a command that authorizes against `Incident` fails with HTTP 500 (`unhandled-exception`) until one exists. `UseSharedResourceAuthorization<TMessage, TResource, TId, TResponse>()` bridges the command to the `SharedResourceLoaderById<Incident, IncidentId>` registered on the line above, and `UpdateIncidentCommand` below implements `IIdentifyResource<Incident, IncidentId>`, which that overload requires.
 
 `MapInboundClaims = false` is essential: with the default `true`, `Microsoft.IdentityModel.JsonWebTokens` rewrites a fixed set of standard JWT claim names through `JsonWebTokenHandler.DefaultInboundClaimTypeMap` — most consequentially for this recipe, `tid` → `http://schemas.microsoft.com/identity/claims/tenantid` and the role claims. Any of those used as an `AttributeClaimMap` value silently misses at runtime because `TrellisInternalJwtActorProvider` reads claim names directly and case-sensitively with no short↔long fallback for attributes. Gateway-controlled custom claims that aren't in the default map (e.g. `amr_normalized` above, `permissions`, `trellis_*`) pass through unchanged either way, but turning the map off is still the simplest correct posture — the only general property is "what `ActorIdClaim` reads has short↔long fallback, everything else does not", so a consumer who later reconfigures `ActorIdClaim` away from `sub` or maps a different standard claim still gets predictable behavior.
 
