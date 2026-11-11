@@ -13,6 +13,11 @@ All notable changes to this repository will be documented in this file. The form
 - **ARCHITECTURE.md §11 added** — covers resource-based authorization at the microservice (vs gateway) with: a layering diagram (gateway WHO vs microservice WHAT), the actor/resource matrix, the 8-cell outcome table, a sequenceDiagram tracing the full Mediator pipeline showing the SAME-instance handoff between `ResourceAuthorizationBehavior` and `IAuthorizedResource<,>.GetRequiredResource()`, the WRONG-vs-RIGHT handler shape contrast, the metric-based load-once proof, and a code-location index. 3 new Mermaid diagrams added; 11 Mermaid diagrams total in the file (all CLI-validated).
 - **Sample-only package pins** in `Directory.Packages.props`: `Mediator.Abstractions` (3.0.2), `Mediator.SourceGenerator` (3.0.2). Added new `Trellis.Mediator` + `Trellis.Primitives` pins at `3.0.0-alpha.360` (these packages were not previously consumed by the sample). Bumped the existing upstream `Trellis.Asp` + `Trellis.Authorization` + `Trellis.Core` + `Trellis.ServiceDefaults` + `Trellis.Testing` pins from `3.0.0-alpha.342` to `3.0.0-alpha.360` to pick up the v4 typed accessor (`IAuthorizedResource<TCommand, TResource>`) which landed in upstream Trellis after `alpha.342`.
 
+### Fixed
+
+- **Microservices cookbook Recipe 1 registered resource authorization without a loader.** The composition root called `UseResourceAuthorization<UpdateIncidentCommand, Incident, Result<Unit>>()`, which registers no resource loader, so the command returned HTTP 500 (`unhandled-exception`). It now registers `SharedResourceLoaderById<Incident, IncidentId>` and uses `UseSharedResourceAuthorization<...>()`.
+- **`TrellisInternalJwtActorOptions.AttributeClaimMap` XML comment named the wrong well-known keys.** It listed `tenant_id`, `mfa` and `ip`; `ActorAttributes` defines `tid`, `mfa` and `ip_address`.
+
 ### Changed
 
 - **Updated all seven upstream Trellis package pins from `3.0.0-alpha.554` to `3.0.0-alpha.582`.** Core, Authorization, ASP.NET Core, Mediator, Primitives, ServiceDefaults and Testing remain aligned through `TrellisVersion`. No application API changes are required; the full build, all 352 tests, packed AgentDocs guidance validation and API-reference lint pass.
