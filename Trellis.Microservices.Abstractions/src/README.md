@@ -60,7 +60,7 @@ Consumers can install the local tool, initialize their restored graph, approve
 
 ```powershell
 dotnet new tool-manifest --output .config
-dotnet tool install Trellis.AgentDocs --version 1.0.2 --tool-manifest .config/dotnet-tools.json
+dotnet tool install Trellis.AgentDocs --version 1.0.3 --tool-manifest .config/dotnet-tools.json
 dotnet tool run agentdocs init <solution-or-project>
 dotnet tool run agentdocs sync
 ```
