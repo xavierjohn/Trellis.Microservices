@@ -26,13 +26,13 @@ A working, Aspire-orchestrated sample of the Trellis internal-JWT contract with 
 - **`RequiredAttributes = ["tenant_id"]`** on both services makes `tenant_id` a hard requirement — fail-closed defense against a gateway-side mint accidentally omitting a tenant-isolation claim.
 - The hydrated `Actor` on each service matches what the Gateway started with — round-trip integrity proof.
 - **YARP routing** (path-based, two clusters) — same `Gateway:5001` host, different downstream depending on path prefix.
-- **Aspire telemetry** — every request flows through OTEL spans so the dashboard shows `Gateway -> Orders` and `Gateway -> Billing` traces with timings, logs, and metrics.
+- **Aspire telemetry** — every request flows through OTEL spans so the dashboard shows `Gateway -> Orders` and `Gateway -> Billing` traces with timings, logs, and metrics. Server tracing subscribes to .NET 11's native `Microsoft.AspNetCore` activity source; ASP.NET Core instrumentation remains registered for metrics.
 - **Resource-based authorization (Orders only)** — two pre-seeded actors `john` and `jill` share the same `orders:read` + `orders:write` permissions, but **each owns one order** (john→order-1, jill→order-2). Policy: view-any (any actor with `orders:read` can GET any order) + edit-mine (only the owner can PUT). Wired via `Trellis.Mediator` + `IAuthorizeResource<Order>` + `SharedResourceLoaderById<Order, OrderId>`. The 8-cell outcome matrix (john/jill × view/edit × order-1/order-2 → 200/200/200/200/204/403/204/403) is encoded in `Sample.http` rows 10-17.
 - **Load-once invariant** — the single-resource Orders handlers (`GetOrderHandler` / `UpdateOrderHandler`) inject `IAuthorizedResource<TCommand, Order>` (the v4 typed accessor) instead of `IOrderRepository`, so each GET/PUT on a specific order loads the resource EXACTLY ONCE per request (during pipeline auth) and the handler reads the same instance. `ListOrdersHandler` intentionally uses `IOrderRepository.ListAllAsync` because list isn't a single-resource authorization path (no `IIdentifyResource<,>`). Proved by the `orders.resource_loads` counter — N curls of `GET /api/orders/{id}` → N counter ticks. See `ARCHITECTURE.md` §11.5 for the falsifiable demo.
 
 ## Run it
 
-**Prereq:** .NET 10 SDK matching the pin in [`global.json`](../../global.json) (currently `10.0.203` with `rollForward=latestFeature` — any 10.0.2xx SDK in the 200 feature band works). No Aspire workload installation needed — Aspire 13+ is pure NuGet.
+**Prereq:** .NET 11 SDK matching the pin in [`global.json`](../../global.json) (currently `11.0.100` with `rollForward=latestFeature` — SDK 11.0.100 or a later 11.0 feature band works). No Aspire workload installation needed — Aspire 13+ is pure NuGet.
 
 ```powershell
 cd examples/Sample

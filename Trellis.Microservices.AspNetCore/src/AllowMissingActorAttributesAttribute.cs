@@ -42,8 +42,8 @@ public sealed class AllowMissingActorAttributesAttribute : Attribute
                 "Specify at least one actor attribute name to allow missing; a blanket exemption is not supported.",
                 nameof(attributeNames));
 
-        var names = new List<string>(attributeNames.Length);
-        var seen = new HashSet<string>(StringComparer.Ordinal);
+        List<string> names = [with(capacity: attributeNames.Length)];
+        HashSet<string> seen = [with(StringComparer.Ordinal)];
         foreach (var name in attributeNames)
         {
             if (string.IsNullOrWhiteSpace(name))

@@ -58,7 +58,7 @@ public static class Extensions
                 .AddRuntimeInstrumentation())
             .WithTracing(tracing => tracing
                 .AddSource(builder.Environment.ApplicationName)
-                .AddAspNetCoreInstrumentation()
+                .AddSource("Microsoft.AspNetCore")
                 .AddHttpClientInstrumentation());
 
         builder.AddOpenTelemetryExporters();

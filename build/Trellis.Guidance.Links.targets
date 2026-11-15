@@ -28,7 +28,7 @@
                     if (reference.GetMetadata("PackageId") != "Trellis.Core")
                         continue;
 
-                    var url = sourcePrefix + Path.GetFileName(reference.GetMetadata("DocumentPath"));
+                    var url = sourcePrefix + reference.GetMetadata("DocumentPath").Substring("trellis/".Length);
                     text = text.Replace("](" + url + "#", "](" + reference.ItemSpec + "#")
                         .Replace("](" + url + ")", "](" + reference.ItemSpec + ")");
                 }

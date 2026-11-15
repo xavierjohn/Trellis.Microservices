@@ -39,7 +39,10 @@ $documentReferences = [ordered]@{
         'upstream/trellis-api-authorization.md' = 'Trellis.Core'
         'upstream/trellis-api-asp.md' = 'Trellis.Core'
         'upstream/trellis-api-servicedefaults.md' = 'Trellis.Core'
-        'upstream/trellis-api-cookbook.md' = 'Trellis.Core'
+        'upstream/trellis-start-here.md' = 'Trellis.Core'
+        'upstream/recipes/recipe-07-resource-authorization.md' = 'Trellis.Core'
+        'upstream/recipes/recipe-24-indirect-authorization.md' = 'Trellis.Core'
+        'upstream/recipes/recipe-32-hide-existence.md' = 'Trellis.Core'
     }
     'Trellis.Yarp' = [ordered]@{
         'trellis-api-microservices-abstractions.md' = 'Trellis.Microservices.Abstractions'
@@ -62,6 +65,65 @@ $documentHashes = @{}
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $sourceDirectory = Join-Path $repositoryRoot 'docs\docfx_project\api_reference'
 $upstreamSourcePrefix = 'https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/'
+$projectionDirectory = Join-Path ([System.IO.Path]::GetTempPath()) "guidance-projection-$([guid]::NewGuid().ToString('N'))"
+try {
+    [void] [System.IO.Directory]::CreateDirectory($projectionDirectory)
+    $utf8Bom = [System.Text.UTF8Encoding]::new($true)
+    $projectionSource = Join-Path $projectionDirectory 'source.md'
+    $sourceText = @"
+[Core](${upstreamSourcePrefix}trellis-api-core.md#use-this-file-when)
+[Authorization](${upstreamSourcePrefix}recipes/recipe-07-resource-authorization.md#microservices)
+[Related resource](${upstreamSourcePrefix}recipes/recipe-24-indirect-authorization.md)
+[Unrelated](https://example.com/recipes/recipe-07-resource-authorization.md)
+"@
+    [System.IO.File]::WriteAllText($projectionSource, $sourceText, $utf8Bom)
+    $projectionTargets = [System.Security.SecurityElement]::Escape(
+        (Join-Path $PSScriptRoot 'Trellis.Guidance.Links.targets'))
+    $projectionOutput = [System.Security.SecurityElement]::Escape(
+        (Join-Path $projectionDirectory 'projected'))
+    $projectionProject = Join-Path $projectionDirectory 'projection.proj'
+    $projectText = @"
+<Project>
+  <Import Project="$projectionTargets" />
+  <ItemGroup>
+    <Guide Include="source.md" />
+    <GuideReference Include="upstream/trellis-api-core.md" PackageId="Trellis.Core"
+                    DocumentPath="trellis/trellis-api-core.md" />
+    <GuideReference Include="upstream/recipes/recipe-07-resource-authorization.md" PackageId="Trellis.Core"
+                    DocumentPath="trellis/recipes/recipe-07-resource-authorization.md" />
+    <GuideReference Include="upstream/recipes/recipe-24-indirect-authorization.md" PackageId="Trellis.Core"
+                    DocumentPath="trellis/recipes/recipe-24-indirect-authorization.md" />
+  </ItemGroup>
+  <Target Name="ProjectGuidance">
+    <ProjectTrellisGuidanceLinks Documents="@(Guide)" References="@(GuideReference)" OutputDirectory="$projectionOutput" />
+  </Target>
+</Project>
+"@
+    [System.IO.File]::WriteAllText($projectionProject, $projectText, $utf8Bom)
+    $projection = & dotnet msbuild $projectionProject -target:ProjectGuidance -verbosity:quiet -nologo 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Guidance projection fixture failed:`n$($projection | Out-String)"
+    }
+
+    $expectedProjection = $sourceText.Replace(
+        "${upstreamSourcePrefix}trellis-api-core.md", 'upstream/trellis-api-core.md').Replace(
+        "${upstreamSourcePrefix}recipes/recipe-07-resource-authorization.md", 'upstream/recipes/recipe-07-resource-authorization.md').Replace(
+        "${upstreamSourcePrefix}recipes/recipe-24-indirect-authorization.md", 'upstream/recipes/recipe-24-indirect-authorization.md')
+    $projectedSource = Join-Path $projectionDirectory 'projected\source.md'
+    if ([System.IO.File]::ReadAllText($projectedSource) -cne $expectedProjection) {
+        throw 'Guidance projection must preserve nested recipe paths, anchors, and unrelated links.'
+    }
+    if ([System.IO.File]::ReadAllText($projectionSource) -cne $sourceText) {
+        throw 'Guidance projection must not modify canonical source Markdown.'
+    }
+    Write-Host 'PASS root and nested guidance link projection without modifying canonical sources'
+}
+finally {
+    if (Test-Path -LiteralPath $projectionDirectory) {
+        Remove-Item -LiteralPath $projectionDirectory -Recurse -Force
+    }
+}
+
 foreach ($packageId in $references.Keys) {
     foreach ($documentPath in $references[$packageId].Keys) {
         $source = [System.IO.File]::ReadAllText((Join-Path $sourceDirectory $documentPath))
@@ -128,7 +190,7 @@ try {
             foreach ($referencePath in $expectedReferences.Keys) {
                 $matches = @($declaredReferences.Value | Where-Object path -CEQ $referencePath)
                 $targetPackage = $expectedReferences[$referencePath]
-                $targetPath = if ($targetPackage -ceq 'Trellis.Core') { "trellis/$([System.IO.Path]::GetFileName($referencePath))" } else { $referencePath }
+                $targetPath = if ($targetPackage -ceq 'Trellis.Core') { "trellis/$($referencePath.Substring('upstream/'.Length))" } else { $referencePath }
                 if ($matches.Count -ne 1 -or $matches[0].packageId -cne $targetPackage -or
                     $matches[0].documentPath -cne $targetPath -or $archive.GetEntry($referencePath)) {
                     throw "$packageId must reference $targetPackage/$targetPath without packing a duplicate at $referencePath."
@@ -160,7 +222,7 @@ try {
                 foreach ($referencePath in $expectedReferences.Keys) {
                     if ($expectedReferences[$referencePath] -ceq 'Trellis.Core') {
                         $expectedText = $expectedText.Replace(
-                            "$upstreamSourcePrefix$([System.IO.Path]::GetFileName($referencePath))",
+                            "$upstreamSourcePrefix$($referencePath.Substring('upstream/'.Length))",
                             $referencePath)
                     }
                 }
@@ -313,7 +375,7 @@ try {
         $packageId = $projects[$projectName]
         $project = @"
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+  <PropertyGroup><TargetFramework>net11.0</TargetFramework></PropertyGroup>
   <ItemGroup><PackageReference Include="$packageId" Version="$($packageVersions[$packageId])" /></ItemGroup>
 </Project>
 "@
@@ -408,7 +470,7 @@ try {
                         continue
                     }
                     $targetPackage = $documentReferences[$packageId][$referencePath]
-                    $targetPath = if ($targetPackage -ceq 'Trellis.Core') { "trellis/$([System.IO.Path]::GetFileName($referencePath))" } else { $referencePath }
+                    $targetPath = if ($targetPackage -ceq 'Trellis.Core') { "trellis/$($referencePath.Substring('upstream/'.Length))" } else { $referencePath }
                     if (-not $text.Contains("../$($targetPackage.ToLowerInvariant())/$targetPath")) {
                         throw "$packageId/$documentPath must rewrite its reference to $targetPackage/$targetPath."
                     }

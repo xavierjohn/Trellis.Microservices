@@ -2,6 +2,8 @@
 
 Shared contract constants for the Trellis internal-network JWT v1.
 
+**Requires .NET 11 (`net11.0`) and SDK 11.0.100+.**
+
 This package ships **one public static class** — `TrellisInternalJwtClaimNames` — that pairs the gateway-side minter (`Trellis.Yarp`) with the consumer-side actor provider (`Trellis.Microservices.AspNetCore`). Both sides reference these literals so any future contract version bump is one coordinated change.
 
 ## Properties
