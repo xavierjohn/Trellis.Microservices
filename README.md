@@ -6,13 +6,15 @@
 [![NuGet: Trellis.Yarp](https://img.shields.io/nuget/v/Trellis.Yarp.svg?label=Trellis.Yarp)](https://www.nuget.org/packages/Trellis.Yarp)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/Trellis.Microservices.AspNetCore.svg)](https://www.nuget.org/packages/Trellis.Microservices.AspNetCore)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![.NET](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/download)
-[![C#](https://img.shields.io/badge/C%23-14.0-blue.svg)](https://docs.microsoft.com/en-us/dotnet/csharp/)
+[![.NET](https://img.shields.io/badge/.NET-11.0-purple.svg)](https://dotnet.microsoft.com/download)
+[![C#](https://img.shields.io/badge/C%23-15.0-blue.svg)](https://docs.microsoft.com/en-us/dotnet/csharp/)
 [![GitHub Stars](https://img.shields.io/github/stars/xavierjohn/Trellis.Microservices?style=social)](https://github.com/xavierjohn/Trellis.Microservices/stargazers)
 
 > Microservices building blocks for [Trellis](https://github.com/xavierjohn/Trellis): YARP gateway that mints internal-network JWTs + consumer-side actor provider enforcing a strict claim contract that defends multi-tenant ABAC.
 
 This repository ships three NuGet packages that pair a YARP gateway (minter) with downstream services (consumers) over a tightly-defined internal JWT contract. Both sides reference the same shared constants so any contract change is one coordinated edit.
+
+**Requirements:** .NET 11 and SDK 11.0.100+. All three packages target `net11.0`; .NET 10 consumers must upgrade. Upstream Trellis packages are aligned at `3.0.0-alpha.721`.
 
 ## Try it now
 
@@ -137,7 +139,7 @@ modifying the source Markdown or duplicating Core's guides.
 | `Trellis.Microservices.Abstractions` | Shared JWT contract and microservices cookbook |
 | `Trellis.Yarp` | Gateway API reference |
 | `Trellis.Microservices.AspNetCore` | Consumer API reference |
-| `Trellis.Core` | Upstream Core, Authorization, ASP, ServiceDefaults, and cookbook references |
+| `Trellis.Core` | Always-required `trellis-start-here.md`, upstream package references, and separate on-demand `recipes/recipe-*.md` documents |
 
 Restoring a package never installs instructions. Consumers explicitly install
 `Trellis.AgentDocs` `1.0.3`, initialize their restored graph, approve

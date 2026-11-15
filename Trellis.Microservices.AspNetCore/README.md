@@ -2,6 +2,8 @@
 
 Consumer-side counterpart to [`Trellis.Yarp`](../Trellis.Yarp/). Hydrates the full Trellis `Actor` (id + permissions + forbidden permissions + ABAC attributes) from a verified gateway-minted internal JWT, enforcing the strict sentinel + count claim contract that defends the deny-overrides-allow invariant against a proxy stripping the deny set.
 
+**Requires .NET 11 (`net11.0`) and SDK 11.0.100+.**
+
 ## Usage
 
 One call wires the strict `AddJwtBearer` profile and the actor provider together so they cannot drift:

@@ -49,9 +49,18 @@
     <PackageGuidanceReference Include="upstream/trellis-api-servicedefaults.md"
                               PackageId="Trellis.Core"
                               DocumentPath="trellis/trellis-api-servicedefaults.md" />
-    <PackageGuidanceReference Include="upstream/trellis-api-cookbook.md"
+    <PackageGuidanceReference Include="upstream/trellis-start-here.md"
                               PackageId="Trellis.Core"
-                              DocumentPath="trellis/trellis-api-cookbook.md" />
+                              DocumentPath="trellis/trellis-start-here.md" />
+    <PackageGuidanceReference Include="upstream/recipes/recipe-07-resource-authorization.md"
+                              PackageId="Trellis.Core"
+                              DocumentPath="trellis/recipes/recipe-07-resource-authorization.md" />
+    <PackageGuidanceReference Include="upstream/recipes/recipe-24-indirect-authorization.md"
+                              PackageId="Trellis.Core"
+                              DocumentPath="trellis/recipes/recipe-24-indirect-authorization.md" />
+    <PackageGuidanceReference Include="upstream/recipes/recipe-32-hide-existence.md"
+                              PackageId="Trellis.Core"
+                              DocumentPath="trellis/recipes/recipe-32-hide-existence.md" />
   </ItemGroup>
 
   <Import Project="$(MSBuildThisFileDirectory)build\Trellis.Guidance.Links.targets"

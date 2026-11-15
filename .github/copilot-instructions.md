@@ -10,11 +10,11 @@ These instructions are for repository workflow and contribution conventions only
 
 Before writing or changing code that uses these packages, read the relevant files in `docs/docfx_project/api_reference/`.
 
-Start with [`docs/docfx_project/api_reference/trellis-api-microservices-cookbook.md`](../docs/docfx_project/api_reference/trellis-api-microservices-cookbook.md). Use its task lookup table to find the right recipe, then read the package reference files for exact signatures, overloads, namespaces, and examples. Do not infer API behavior from these Copilot instructions.
+Read upstream `trellis-start-here.md` from the restored `Trellis.Core` guidance first and keep it resident. Then read [`docs/docfx_project/api_reference/trellis-api-microservices-cookbook.md`](../docs/docfx_project/api_reference/trellis-api-microservices-cookbook.md). Use their task lookup tables to find the right recipe, then read the package reference files for exact signatures, overloads, namespaces, and examples. Upstream recipes are separate on-demand `recipes/recipe-*.md` documents, not a monolithic cookbook. Do not infer API behavior from these Copilot instructions.
 
 ### Recommended context size
 
-This repo is significantly narrower than the main Trellis repo — the full set of API references is ~80 KB (~20K tokens). With required upstream docs (Trellis main repo's authorization + asp + servicedefaults + Recipe 7/32) the working set is **120–180K tokens**.
+This repo is significantly narrower than the main Trellis repo — the full set of API references is ~80 KB (~20K tokens). Hold upstream `trellis-start-here.md` resident, then load the selected upstream package sections and recipe bodies on demand (including Recipes 7, 24, and 32 when the task needs them).
 
 | Tier | Context | When this is enough |
 |---|---|---|
@@ -26,10 +26,11 @@ This repo is significantly narrower than the main Trellis repo — the full set 
 
 For any non-trivial work in this repo, load these **before** writing the first line of code:
 
-1. `docs/docfx_project/api_reference/trellis-api-microservices-cookbook.md` — always. Its task lookup table is the entry point and lists the cross-repo deps.
-2. The area-specific reference for the package being modified (table below).
-3. The companion side's reference if the change crosses the gateway↔consumer boundary (the contract MUST stay in lock-step on both sides; modifying `Trellis.Yarp`'s mint without checking `Trellis.Microservices.AspNetCore`'s hydration silently breaks the contract).
-4. The upstream `Trellis` repo's `trellis-api-authorization.md` if the work touches `Actor` / `IActorProvider` semantics, and `trellis-api-asp.md` if it touches `AddJwtBearer` / `ClaimsActorProvider` / `EntraActorProvider` integration.
+1. Upstream `trellis-start-here.md` — always, in full, from restored `Trellis.Core` guidance (`.agentdocs/packages/trellis.core/trellis/trellis-start-here.md` after approved synchronization). It is Core's only required document; do not substitute a moving-branch copy for the restored version.
+2. `docs/docfx_project/api_reference/trellis-api-microservices-cookbook.md` — always. Its task lookup table lists the cross-repo dependencies.
+3. The area-specific reference for the package being modified (table below).
+4. The companion side's reference if the change crosses the gateway↔consumer boundary (the contract MUST stay in lock-step on both sides; modifying `Trellis.Yarp`'s mint without checking `Trellis.Microservices.AspNetCore`'s hydration silently breaks the contract).
+5. The upstream `Trellis` guidance's `trellis-api-authorization.md` if the work touches `Actor` / `IActorProvider` semantics, and `trellis-api-asp.md` if it touches `AddJwtBearer` / `ClaimsActorProvider` / `EntraActorProvider` integration. Follow Core's router for the selected package sections and per-recipe files, including `recipes/recipe-07-resource-authorization.md`, `recipes/recipe-24-indirect-authorization.md`, and `recipes/recipe-32-hide-existence.md`.
 
 | When touching... | Read first |
 |---|---|

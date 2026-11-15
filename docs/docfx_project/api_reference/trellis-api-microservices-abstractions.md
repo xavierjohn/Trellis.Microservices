@@ -10,6 +10,7 @@ audience: [llm]
 
 **Package:** `Trellis.Microservices.Abstractions` (AOT-compatible, no runtime dependencies; ships only `const string` literals).
 **Namespaces:** `Trellis.Microservices.Abstractions`
+**Target:** `net11.0`; SDK 11.0.100+.
 **Purpose:** Single source of truth for the canonical claim-name literals and contract-version constants that the gateway-side minter (`Trellis.Yarp.TrellisActorJwtMinter`) and the consumer-side provider (`Trellis.Microservices.AspNetCore.TrellisInternalJwtActorProvider`) must agree on bit-for-bit.
 
 ## Use this file when

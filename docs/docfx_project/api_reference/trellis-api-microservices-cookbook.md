@@ -4,7 +4,7 @@ namespaces: [Trellis.Yarp, Trellis.Microservices.AspNetCore, Trellis.Microservic
 types: [recipes]
 related_docs: [trellis-api-yarp.md, trellis-api-internal-jwt.md, trellis-api-microservices-abstractions.md]
 upstream_repo: https://github.com/xavierjohn/Trellis
-upstream_required_docs: [trellis-api-authorization.md, trellis-api-asp.md, trellis-api-servicedefaults.md]
+upstream_required_docs: [trellis-start-here.md, trellis-api-authorization.md, trellis-api-asp.md, trellis-api-servicedefaults.md, recipes/recipe-07-resource-authorization.md, recipes/recipe-24-indirect-authorization.md, recipes/recipe-32-hide-existence.md]
 version: v1
 last_verified: 2026-06-05
 audience: [llm]
@@ -20,11 +20,13 @@ audience: [llm]
   - [trellis-api-microservices-abstractions.md](trellis-api-microservices-abstractions.md#use-this-file-when) — `TrellisInternalJwtClaimNames`, contract version constants
 
 - **Required upstream docs (published by `Trellis.Core`):**
+  - [`trellis-start-here.md`](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-start-here.md) — the always-required routing head; keep it resident and read the task-specific package references and individual recipe bodies on demand
   - [`trellis-api-authorization.md`](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-authorization.md#use-this-file-when) — `Actor`, `IActorProvider`, `IAuthorize`, `IAuthorizeResource<>` (every minted JWT hydrates back into an `Actor`)
   - [`trellis-api-asp.md`](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-asp.md#use-this-file-when) — `ClaimsActorProvider`, `EntraActorProvider`, `EasyAuthClaimsActorProvider` (the gateway-side actor sources that feed `AddTrellisActorForwarding`; `EasyAuthClaimsActorProvider` + `AddEasyAuth()` — introduced upstream in Trellis `3.0.0-alpha.426` — hydrate the actor from Azure App Service / Container Apps "Easy Auth" principal headers)
   - [`trellis-api-servicedefaults.md`](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-servicedefaults.md#use-this-file-when) — `AddTrellis`, `TrellisServiceBuilder` (the composition root; for the internal-JWT consumer call `services.AddTrellisInternalJwtActorProvider(...)` directly — the `UseTrellisInternalJwtActor` slot was removed in v3 when the implementation moved to this repo)
-  - [`trellis-api-cookbook.md` Recipe 7](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-cookbook.md#recipe-7--authorization-iactorprovider--iauthorize--resource-based-auth) — the 3-path microservices framing (this repo implements Path B)
-  - [`trellis-api-cookbook.md` Recipe 32](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-cookbook.md#recipe-32--hide-existence-with-authfailureexposurepolicyhideasnotfound) — `AuthFailureExposurePolicy.HideAsNotFound` (orthogonal Mediator behavior that pairs naturally with this repo's tenant-isolation pattern)
+  - [Recipe 7 — Resource authorization](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/recipes/recipe-07-resource-authorization.md) — the 3-path microservices framing (this repo implements Path B)
+  - [Recipe 24 — Indirect authorization](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/recipes/recipe-24-indirect-authorization.md) — owner-chain tenant enforcement
+  - [Recipe 32 — Hide existence](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/recipes/recipe-32-hide-existence.md) — `AuthFailureExposurePolicy.HideAsNotFound` (orthogonal Mediator behavior that pairs naturally with this repo's tenant-isolation pattern)
 
 The source links above remain navigable on GitHub. At pack time, generated
 copies replace them with `upstream/` virtual references to the documents owned
@@ -50,7 +52,7 @@ Conventions:
 - All gateway types live in the `Trellis.Yarp` namespace.
 - All consumer-side actor-hydration types live in the `Trellis.Microservices.AspNetCore` namespace.
 - Shared contract constants live in the `Trellis.Microservices.Abstractions` namespace.
-- Snippets use C# 12+ features; both packages target `net10.0`.
+- All three packages target `net11.0` and require SDK 11.0.100+; repository code uses C# 15.
 - `Trellis.Yarp` is **not AOT-compatible** (YARP isn't AOT-clean); `Trellis.Microservices.AspNetCore` and `Trellis.Microservices.Abstractions` are AOT-friendly.
 - Examples use the multi-tenant Project Tracker domain (`Projects` cluster + `Members` cluster) — same shape as the [companion template repo](https://github.com/xavierjohn/Trellis.Microservices.Template).
 
@@ -266,7 +268,7 @@ public sealed record UpdateIncidentCommand(IncidentId Id, IncidentPatch Patch)
 }
 ```
 
-Pair this with [Recipe 32 (upstream)](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-cookbook.md#recipe-32--hide-existence-with-authfailureexposurepolicyhideasnotfound) when cross-tenant probing is itself a leak — `Forbidden` from this check translates to `NotFound`, so an attacker enumerating incident IDs across tenants sees an indistinguishable 404. The `ExistenceHidden` log carries the original `incidents.cross-tenant` code so SecOps can still detect the probe pattern.
+Pair this with [Recipe 32 (upstream)](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/recipes/recipe-32-hide-existence.md) when cross-tenant probing is itself a leak — `Forbidden` from this check translates to `NotFound`, so an attacker enumerating incident IDs across tenants sees an indistinguishable 404. The `ExistenceHidden` log carries the original `incidents.cross-tenant` code so SecOps can still detect the probe pattern.
 
 ### Key-rotation runbook (overlapping JWKS window)
 
@@ -296,13 +298,13 @@ The fail-loud signal during a botched rotation is `SecurityTokenSignatureKeyNotF
 - `MapInboundClaims = false` is mandatory for any consumer of `TrellisInternalJwtActorProvider`; the provider reads JWT claim names directly and case-sensitively.
 - Tenant isolation is the canonical example of "gateway claim ≠ resource authorization" — the resource authorization layer is the defense-in-depth second gate, never optional.
 
-**Related recipes.** [Recipe 7 (upstream)](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-cookbook.md#recipe-7--authorization-iactorprovider--iauthorize--resource-based-auth) for the three-path microservices framing (Path A pass-through, Path B internal JWT shown here, Path C OBO); [Recipe 24 (upstream)](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-cookbook.md#recipe-24--indirect-multi-hop-resource-authorization) for owner-chain tenant enforcement; [Recipe 32 (upstream)](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-cookbook.md#recipe-32--hide-existence-with-authfailureexposurepolicyhideasnotfound) for cross-tenant probing defense; [Recipe 2](#recipe-2--microservices-behind-yarp-end-to-end) for the gateway-side bookend (`Trellis.Yarp` package — the matching mint of the same internal-JWT contract this recipe validates).
+**Related recipes.** [Recipe 7 (upstream)](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/recipes/recipe-07-resource-authorization.md) for the three-path microservices framing (Path A pass-through, Path B internal JWT shown here, Path C OBO); [Recipe 24 (upstream)](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/recipes/recipe-24-indirect-authorization.md) for owner-chain tenant enforcement; [Recipe 32 (upstream)](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/recipes/recipe-32-hide-existence.md) for cross-tenant probing defense; [Recipe 2](#recipe-2--microservices-behind-yarp-end-to-end) for the gateway-side bookend (`Trellis.Yarp` package — the matching mint of the same internal-JWT contract this recipe validates).
 
 ---
 
 ## Recipe 2 — Microservices behind YARP, end-to-end
 
-**Problem.** Recipes 7 + 33 cover the downstream microservice side of Path B (Trellis internal JWT): how to validate a gateway-minted JWT and hydrate the full `Actor`. The other half of that contract is the gateway — the component that authenticates the external user, resolves their full `Actor` (id + permissions + forbidden permissions + ABAC attributes), and re-mints a per-cluster internal JWT that downstream services can validate without ever touching the external IDP. v1 ships that gateway as a YARP transform in the `Trellis.Yarp` package.
+**Problem.** Upstream Recipe 7 and this cookbook's Recipe 1 cover the downstream microservice side of Path B (Trellis internal JWT): how to validate a gateway-minted JWT and hydrate the full `Actor`. The other half of that contract is the gateway — the component that authenticates the external user, resolves their full `Actor` (id + permissions + forbidden permissions + ABAC attributes), and re-mints a per-cluster internal JWT that downstream services can validate without ever touching the external IDP. v1 ships that gateway as a YARP transform in the `Trellis.Yarp` package.
 
 **Fix.** Three pieces: register the actor-forwarding transform on YARP's `IReverseProxyBuilder`, publish OIDC discovery + JWKS so downstream services can fetch the signing keys, and follow the operational guardrails for key rotation + redaction.
 
@@ -478,7 +480,7 @@ builder.Services.AddTrellisInternalJwtActorProvider(c =>
 Mitigations built into the package:
 
 - **Short token lifetimes.** Default 5 minutes; capped to `[1m, 30m]` at startup validation. Even a successful key exfiltration grants the attacker only a short window of unbounded spoof per token (the attacker can re-mint indefinitely, but each token expires quickly).
-- **`kid`-aware overlapping JWKS rotation.** `PreviousSigningKeys` keeps the outgoing key in JWKS for the rotation overlap window so in-flight tokens validated downstream don't get rejected as the gateway switches signers. The runbook (Recipe 33) gates the signer flip on a warm-up probe.
+- **`kid`-aware overlapping JWKS rotation.** `PreviousSigningKeys` keeps the outgoing key in JWKS for the rotation overlap window so in-flight tokens validated downstream don't get rejected as the gateway switches signers. The runbook (Recipe 1) gates the signer flip on a warm-up probe.
 - **Audit-log redaction by construction.** Every mint emits a `[LoggerMessage]` event carrying `kid`, `iss`, `aud`, `jti`, expiration bucket, permission count, forbidden count. NEVER the JWT body, raw claim values, actor IDs, tenant IDs, or PII. Redaction tests assert no claim-value strings appear in the audit-log output.
 
 ### Emergency revocation procedure
@@ -498,11 +500,11 @@ When the gateway-to-microservice channel is already mTLS-authenticated or Manage
 
 ### What it shows
 
-- The gateway-side bookend of Path B (Trellis internal JWT). Where Recipe 33 covered the downstream's strict `AddJwtBearer` validation profile, this recipe shows where the JWT being validated comes from.
+- The gateway-side bookend of Path B (Trellis internal JWT). Where Recipe 1 covered the downstream's strict `AddJwtBearer` validation profile, this recipe shows where the JWT being validated comes from.
 - The two-package contract — `Trellis.Yarp` mints, `Trellis.Microservices.AspNetCore`'s `TrellisInternalJwtActorProvider` hydrates — is unified through the sentinel + count claims (`trellis_actor_contract_version=1`, `trellis_permissions_count`, `trellis_forbidden_permissions_count`) and the strict claim-shape contract.
 - Operational guardrails: short lifetimes, kid-aware rotation overlap, audit-log redaction, emergency revocation procedure. Signing-key compromise is the worst-case scenario the framework explicitly designs around.
 
-**Related recipes.** [Recipe 1](#recipe-1--strict-addjwtbearer-validation-profile-for-addtrellisinternaljwtactorprovider) for the downstream side of the same contract; [Recipe 7 (upstream)](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-cookbook.md#recipe-7--authorization-iactorprovider--iauthorize--resource-based-auth) for the three-path microservices framing (this recipe + Recipe 33 together cover Path B end-to-end); [Recipe 32 (upstream)](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-cookbook.md#recipe-32--hide-existence-with-authfailureexposurepolicyhideasnotfound) for downstream cross-tenant probing defense.
+**Related recipes.** [Recipe 1](#recipe-1--strict-addjwtbearer-validation-profile-for-addtrellisinternaljwtactorprovider) for the downstream side of the same contract; [Recipe 7 (upstream)](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/recipes/recipe-07-resource-authorization.md) for the three-path microservices framing (this recipe + Recipe 1 together cover Path B end-to-end); [Recipe 32 (upstream)](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/recipes/recipe-32-hide-existence.md) for downstream cross-tenant probing defense.
 
 ---
 
@@ -514,6 +516,7 @@ When the gateway-to-microservice channel is already mTLS-authenticated or Manage
 - [trellis-api-internal-jwt.md](trellis-api-internal-jwt.md#use-this-file-when) — consumer-side hydration surface; option-by-option reference for `TrellisInternalJwtActorOptions`
 - [trellis-api-microservices-abstractions.md](trellis-api-microservices-abstractions.md#use-this-file-when) — shared contract constants (`TrellisInternalJwtClaimNames`, contract version)
 - [Upstream `trellis-api-authorization.md`](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-authorization.md#use-this-file-when) — `Actor`, `IActorProvider`, `IAuthorize`, `IAuthorizeResource<>` (foundational types both sides build on)
-- [Upstream Recipe 7](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-cookbook.md#recipe-7--authorization-iactorprovider--iauthorize--resource-based-auth) — 3-path microservices framing (this repo implements Path B)
-- [Upstream Recipe 32](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-api-cookbook.md#recipe-32--hide-existence-with-authfailureexposurepolicyhideasnotfound) — `AuthFailureExposurePolicy.HideAsNotFound` (pairs naturally with tenant isolation)
+- [Upstream routing head](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/trellis-start-here.md) — always-required entry point; upstream recipe bodies are separate on-demand files
+- [Upstream Recipe 7](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/recipes/recipe-07-resource-authorization.md) — 3-path microservices framing (this repo implements Path B)
+- [Upstream Recipe 32](https://github.com/xavierjohn/Trellis/blob/main/docs/docfx_project/api_reference/recipes/recipe-32-hide-existence.md) — `AuthFailureExposurePolicy.HideAsNotFound` (pairs naturally with tenant isolation)
 - [Companion template repo](https://github.com/xavierjohn/Trellis.Microservices.Template) — working Project Tracker starter

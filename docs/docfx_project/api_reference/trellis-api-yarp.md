@@ -10,6 +10,7 @@ audience: [llm]
 
 **Package:** `Trellis.Yarp` (NOT AOT-compatible — YARP itself is not AOT-clean; consumers needing an AOT-compatible microservice path keep the gateway non-AOT and ship AOT-compatible downstream services depending only on `Trellis.Microservices.AspNetCore` + `Trellis.Asp`).
 **Namespaces:** `Trellis.Yarp`
+**Target:** `net11.0`; SDK 11.0.100+.
 **Purpose:** YARP gateway integration for Trellis. Re-mints a per-cluster internal JWT from the full Trellis `Actor` (id + permissions + forbidden permissions + ABAC attributes); exposes an OIDC discovery + JWKS endpoint pair so downstream services using `AddJwtBearer(o => o.Authority = gatewayUrl)` can fetch the active signing keys; emits redacted audit telemetry on every mint.
 
 Pairs with the consumer-side `TrellisInternalJwtActorProvider` in [`Trellis.Microservices.AspNetCore`](trellis-api-internal-jwt.md#use-this-file-when). See [Recipe 1](trellis-api-microservices-cookbook.md#recipe-1--strict-addjwtbearer-validation-profile-for-addtrellisinternaljwtactorprovider) for the downstream side, [Recipe 2](trellis-api-microservices-cookbook.md#recipe-2--microservices-behind-yarp-end-to-end) for the gateway-side end-to-end. Both sides reference the same canonical claim names from [`Trellis.Microservices.Abstractions`](trellis-api-microservices-abstractions.md#use-this-file-when).

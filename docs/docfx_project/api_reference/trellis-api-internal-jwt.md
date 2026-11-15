@@ -10,6 +10,7 @@ audience: [llm]
 
 **Package:** `Trellis.Microservices.AspNetCore` (AOT-compatible — `TrellisInternalJwtActorProvider` uses only `Microsoft.AspNetCore.Authentication`, `System.Security.Claims`, and the canonical claim-name constants from `Trellis.Microservices.Abstractions`; no reflection, no `JsonSerializer.Deserialize<T>(...)` against open generics).
 **Namespaces:** `Trellis.Microservices.AspNetCore` (formerly `Trellis.Asp.Authorization.TrellisInternalJwt*` in `xavierjohn/Trellis` — namespace **moved** for this package family; the type names did not change).
+**Target:** `net11.0`; SDK 11.0.100+.
 **Purpose:** Consumer-side counterpart to [`Trellis.Yarp`](trellis-api-yarp.md#use-this-file-when). Hydrates the full `Actor` surface (`Id` + `Permissions` + `ForbiddenPermissions` + `Attributes`) from a verified gateway-minted internal JWT. Enforces the strict sentinel + count claim contract that defends the deny-overrides-allow invariant against a misbehaving proxy stripping the deny set.
 
 ## Use this file when

@@ -4,6 +4,8 @@ YARP gateway integration for Trellis. Re-mints a per-cluster internal JWT from t
 
 Pairs with the consumer-side `TrellisInternalJwtActorProvider` in `Trellis.Microservices.AspNetCore`.
 
+**Requires .NET 11 (`net11.0`) and SDK 11.0.100+.**
+
 ## Key features
 
 - **`AddTrellisActorForwarding`** — `IReverseProxyBuilder` extension; per-request transform that mints a fresh per-cluster JWT from the full `Actor` and overwrites the upstream `Authorization` header.
