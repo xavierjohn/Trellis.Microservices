@@ -36,7 +36,7 @@
 
   <!-- Sample (Aspire-orchestrated examples/Sample/). Not consumed by packed libraries. -->
   <ItemGroup>
-    <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.6.5" />
+    <PackageVersion Include="Aspire.Hosting.AppHost" Version="17.0.0" />
     <!-- Aspire.Hosting 13.6.1 brought in MessagePack 2.5.302 (GHSA-qhrr-8q5h-9q3h); 13.6.5 already requires the patched 2.5.307. Kept on the 2.5.x line Aspire is built against; MessagePack 3.x is a major bump that Aspire does not test. -->
     <PackageVersion Include="MessagePack" Version="3.1.12" />
     <!-- OpenTelemetry core and contrib Instrumentation.* packages version independently
